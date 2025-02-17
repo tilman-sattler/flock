@@ -21,7 +21,9 @@ Let's get started!
 import asyncio
 
 from flock.core.flock import Flock
-from flock.core.flock_agent import FlockAgent
+from flock.core.flock_agent import FlockAgent, FlockAgentOutputConfig
+from flock.core.logging.formatters.themes import OutputTheme
+
 
 
 # --------------------------------

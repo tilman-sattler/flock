@@ -10,13 +10,12 @@ import cloudpickle
 from opentelemetry import trace
 from opentelemetry.baggage import get_baggage, set_baggage
 
+from flock.config import TELEMETRY
 from flock.core.context.context import FlockContext
 from flock.core.context.context_manager import initialize_context
 from flock.core.execution.local_executor import run_local_workflow
 from flock.core.execution.temporal_executor import run_temporal_workflow
 from flock.core.flock_agent import FlockAgent
-from flock.core.logging.formatters.base_formatter import FormatterOptions
-from flock.core.logging.formatters.pprint_formatter import PrettyPrintFormatter
 from flock.core.logging.logging import get_logger
 from flock.core.registry.agent_registry import Registry
 from flock.core.util.cli_helper import display_banner
@@ -24,7 +23,7 @@ from flock.core.util.input_resolver import top_level_to_keys
 
 T = TypeVar("T", bound=FlockAgent)
 logger = get_logger("flock")
-
+TELEMETRY.setup_tracing()
 tracer = trace.get_tracer(__name__)
 
 
@@ -40,9 +39,6 @@ class Flock:
         model: str = "openai/gpt-4o",
         local_debug: bool = False,
         enable_logging: bool = False,
-        output_formatter: FormatterOptions = FormatterOptions(
-            PrettyPrintFormatter
-        ),
         show_cli_banner: bool = True,
     ):
         """Initialize the Flock orchestrator.
@@ -57,9 +53,6 @@ class Flock:
             span.set_attribute("model", model)
             span.set_attribute("local_debug", local_debug)
             span.set_attribute("enable_logging", enable_logging)
-            span.set_attribute(
-                "output_formatter", output_formatter.formatter.__name__
-            )
             logger.info(
                 "Initializing Flock",
                 model=model,
@@ -80,7 +73,6 @@ class Flock:
             self.context = FlockContext()
             self.model = model
             self.local_debug = local_debug
-            self.output_formatter = output_formatter
             self.start_agent: FlockAgent | str | None = None
             self.input: dict = {}
 
@@ -410,13 +402,9 @@ class Flock:
                 )
 
                 if self.local_debug:
-                    return await run_local_workflow(
-                        self.context, self.output_formatter, box_result
-                    )
+                    return await run_local_workflow(self.context, box_result)
                 else:
-                    return await run_temporal_workflow(
-                        self.context, self.output_formatter, box_result
-                    )
+                    return await run_temporal_workflow(self.context, box_result)
             except Exception as e:
                 logger.exception("Execution failed", error=str(e))
                 raise
