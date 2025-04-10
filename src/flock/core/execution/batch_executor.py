@@ -52,6 +52,8 @@ class BatchProcessor:
         return_errors: bool = False,
         silent_mode: bool = False,
         write_to_csv: str | None = None,
+        hide_columns: list[str] | None = None,
+        delimiter: str = ",",
     ) -> list[Box | dict | None | Exception]:
         """Runs the specified agent/workflow for each item in a batch asynchronously.
 
@@ -70,6 +72,7 @@ class BatchProcessor:
             return_errors: If True, return Exception objects for failed runs instead of raising.
             silent_mode: If True, suppress output and show progress bar instead.
             write_to_csv: Path to save results as CSV file.
+            hide_columns: List of column names to hide from output.
 
         Returns:
             List containing results (Box/dict), None (if error and not return_errors),
@@ -81,7 +84,9 @@ class BatchProcessor:
             Exception: First exception from a run if return_errors is False.
         """
         effective_use_temporal = (
-            use_temporal if use_temporal is not None else self.enable_temporal
+            use_temporal
+            if use_temporal is not None
+            else self.flock.enable_temporal
         )
         exec_mode = (
             "Temporal"
@@ -268,9 +273,11 @@ class BatchProcessor:
         if write_to_csv:
             try:
                 df = pd.DataFrame(results)
+                if hide_columns:
+                    df = df.drop(columns=hide_columns)
                 # create write_to_csv directory if it doesn't exist
                 Path(write_to_csv).parent.mkdir(parents=True, exist_ok=True)
-                df.to_csv(write_to_csv, index=False)
+                df.to_csv(write_to_csv, index=False, sep=delimiter)
                 logger.info(f"Results written to CSV file: {write_to_csv}")
             except Exception as e:
                 logger.error(f"Failed to write results to CSV: {e}")
@@ -290,6 +297,8 @@ class BatchProcessor:
         return_errors: bool = False,
         silent_mode: bool = False,
         write_to_csv: str | None = None,
+        hide_columns: list[str] | None = None,
+        delimiter: str = ",",
     ) -> list[Box | dict | None | Exception]:
         """Synchronous wrapper for run_batch_async."""
         # (Standard asyncio run wrapper - same as in previous suggestion)
@@ -313,6 +322,8 @@ class BatchProcessor:
             return_errors=return_errors,
             silent_mode=silent_mode,
             write_to_csv=write_to_csv,
+            hide_columns=hide_columns,
+            delimiter=delimiter,
         )
 
         if asyncio.get_event_loop() is loop and not loop.is_running():
