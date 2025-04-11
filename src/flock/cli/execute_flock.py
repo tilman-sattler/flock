@@ -502,6 +502,11 @@ def execute_flock_batch(flock: Flock):
 
         hide_columns = hide_columns.split(",") if hide_columns else []
 
+        delimiter = questionary.text(
+            "Delimiter (default is comma):",
+            default=",",
+        ).ask()
+
     # Logging options
     enable_logging = questionary.confirm(
         "Enable detailed logging?",
@@ -567,6 +572,7 @@ def execute_flock_batch(flock: Flock):
             silent_mode=silent_mode,
             write_to_csv=write_to_csv,
             hide_columns=hide_columns,
+            delimiter=delimiter,
         )
 
         # Display results summary
