@@ -1,6 +1,5 @@
 """Output formatting and display functionality for agents."""
 
-import os
 from typing import TYPE_CHECKING, Any
 
 from pydantic import Field
@@ -36,9 +35,6 @@ class OutputModuleConfig(FlockModuleConfig):
     )
     max_length: int = Field(
         default=1000, description="Maximum length for displayed output"
-    )
-    output_dir: str = Field(
-        default="output/", description="Directory for saving output files"
     )
     truncate_long_values: bool = Field(
         default=True, description="Whether to truncate long values in display"
@@ -196,14 +192,3 @@ class OutputModule(FlockModule):
     def add_custom_formatter(self, key: str, formatter_name: str) -> None:
         """Add a custom formatter for a specific output key."""
         self.config.custom_formatters[key] = formatter_name
-
-    def get_output_files(self) -> list[str]:
-        """Get list of saved output files."""
-        if not self.config.write_to_file:
-            return []
-
-        return [
-            f
-            for f in os.listdir(self.config.output_dir)
-            if f.endswith("_output.json")
-        ]
