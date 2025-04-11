@@ -12,7 +12,7 @@ logger = get_logger("cli.runner")
 
 
 def start_flock_cli(
-    flock: Flock,
+    flock: "Flock",
     server_name: str = "Flock CLI",
     show_results: bool = False,
     edit_mode: bool = False,
