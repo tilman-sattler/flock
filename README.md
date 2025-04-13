@@ -35,20 +35,20 @@ Built with real-world deployment in mind, Flock integrates seamlessly with tools
 
 Flock offers a different way to build agentic systems:
 
-| Traditional Agent Frameworks 😟        | Flock Framework 🐤🐧🐓🦆             |
-| :------------------------------------- | :------------------------------------ |
-| 🤯 **Prompt Nightmare**                | ✅ **Declarative Simplicity**         |
-| *Long, brittle, hard-to-tune prompts*  | *Clear input/output specs (typed!)*   |
-| 💥 **Fragile & Unpredictable**         | ⚡ **Robust & Production-Ready**     |
-| *Single errors can halt everything*    | *Fault-tolerant via Temporal option*  |
-| 🧩 **Monolithic & Rigid**             | 🔧 **Modular & Flexible**             |
-| *Hard to extend or modify logic*       | *Pluggable Evaluators, Modules, Tools*|
-| ⛓️ **Basic Chaining**                 | 🚀 **Advanced Orchestration**         |
-| *Often just linear workflows*          | *Dynamic Routing, Batch Processing*   |
-| 🧪 **Difficult Testing**               | ✅ **Testable Components**            |
-| *Hard to unit test prompt logic*       | *Clear I/O contracts aid testing*     |
-| 📄 **Unstructured Output**             | ✨ **Structured Data Handling**       |
-| *Parsing unreliable LLM text output*   | *Native Pydantic/Typed Dict support*  |
+| Traditional Agent Frameworks 😟        | Flock Framework 🐤🐧🐓🦆                   |
+| :------------------------------------ | :------------------------------------- |
+| 🤯 **Prompt Nightmare**                | ✅ **Declarative Simplicity**           |
+| *Long, brittle, hard-to-tune prompts* | *Clear input/output specs (typed!)*    |
+| 💥 **Fragile & Unpredictable**         | ⚡ **Robust & Production-Ready**        |
+| *Single errors can halt everything*   | *Fault-tolerant via Temporal option*   |
+| 🧩 **Monolithic & Rigid**              | 🔧 **Modular & Flexible**               |
+| *Hard to extend or modify logic*      | *Pluggable Evaluators, Modules, Tools* |
+| ⛓️ **Basic Chaining**                  | 🚀 **Advanced Orchestration**           |
+| *Often just linear workflows*         | *Dynamic Routing, Batch Processing*    |
+| 🧪 **Difficult Testing**               | ✅ **Testable Components**              |
+| *Hard to unit test prompt logic*      | *Clear I/O contracts aid testing*      |
+| 📄 **Unstructured Output**             | ✨ **Structured Data Handling**         |
+| *Parsing unreliable LLM text output*  | *Native Pydantic/Typed Dict support*   |
 
 ## 💡 Core Concepts
 
@@ -150,7 +150,17 @@ if __name__ == "__main__":
         print("Ensure your LLM API key (e.g., OPENAI_API_KEY) is set in your .env file!")
 ```
 
-## ✨ Utility: @flockclass Hydrator
+## 🐤 New in Flock 0.4.0 `Magpie` 🐤
+
+### REST API - Deploy Flock Agents as REST API Endpoints
+
+### Web UI - Test Flock Agents in the Browser
+
+### CLI Tool - Manage Flock Agents via the Command Line
+
+### Serialization - Share, Deploy, and Run Flock Agents by human readable yaml files
+
+### ✨ Utility: @flockclass Hydrator
 
 Flock also provides conveniences. The @flockclass decorator allows you to easily populate Pydantic models using an LLM:
 
@@ -209,11 +219,10 @@ Ways to contribute:
 - Improve documentation.
 - Contribute new Modules, Evaluators, or Routers.
 - Add examples to the flock-showcase repository.
-- Join our Discord Community to discuss development! <!-- Add Discord link -->
 
 ## 📜 License
 
-Flock is licensed under the Apache License 2.0. See the LICENSE file for details.
+Flock is licensed under the MIT License. See the LICENSE file for details.
 
 ## 🏢 About
 
