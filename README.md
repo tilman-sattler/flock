@@ -11,7 +11,15 @@
   <a href="https://github.com/whiteducksoftware/flock/actions/workflows/deploy-whiteduck-pypi.yml" target="_blank"><img alt="CI Status" src="https://img.shields.io/github/actions/workflow/status/whiteducksoftware/flock/deploy-whiteduck-pypi.yml?branch=master&style=for-the-badge&logo=githubactions&logoColor=white"></a>
   <a href="https://github.com/whiteducksoftware/flock/blob/master/LICENSE" target="_blank"><img alt="License" src="https://img.shields.io/pypi/l/flock-core?style=for-the-badge"></a>
   <a href="https://whiteduck.de" target="_blank"><img alt="Built by white duck" src="https://img.shields.io/badge/Built%20by-white%20duck%20GmbH-white?style=for-the-badge&labelColor=black"></a>
+  <a href="https://www.linkedin.com/company/whiteduck" target="_blank"><img alt="LinkedIn" src="https://img.shields.io/badge/linkedin-%230077B5.svg?style=for-the-badge&logo=linkedin&logoColor=white&label=whiteduck"></a>
+<a href="https://bsky.app/profile/whiteduck-gmbh.bsky.social" target="_blank"><img alt="Bluesky" src="https://img.shields.io/badge/bluesky-Follow-blue?style=for-the-badge&logo=bluesky&logoColor=%23fff&color=%23333&labelColor=%230285FF&label=whiteduck-gmbh"></a>
 </p>
+
+🐤 Flock 0.4.0 currently in beta - use `pip install flock-core==0.4.0b5` 🐤
+
+🐤 `pip install flock-core` will install the latest non-beta version 🐤
+
+🐤  Expected Release for 0.4.0 `Magpie`: End of April 2025 🐤
 
 ---
 
