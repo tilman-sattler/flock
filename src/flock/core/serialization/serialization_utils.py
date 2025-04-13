@@ -5,8 +5,17 @@ import ast
 import builtins
 import importlib
 import sys
+import types
+import typing
 from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING, Any, get_args, get_origin
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Literal,
+    Union,
+    get_args,
+    get_origin,
+)
 
 from pydantic import BaseModel
 
@@ -14,6 +23,7 @@ from pydantic import BaseModel
 if TYPE_CHECKING:
     pass
 
+from flock.core.flock_registry import get_registry
 from flock.core.logging.logging import get_logger
 
 logger = get_logger("serialization.utils")
@@ -22,6 +32,65 @@ logger = get_logger("serialization.utils")
 # FlockRegistry = get_registry()  # Get singleton instance
 
 # --- Serialization Helper ---
+
+# src/flock/util/hydrator.py (or import from serialization_utils)
+
+
+def _format_type_to_string(type_hint: type) -> str:
+    """Converts a Python type object back into its string representation."""
+    # This needs to handle various typing scenarios (List, Dict, Union, Optional, Literal, custom types)
+    origin = typing.get_origin(type_hint)
+    args = typing.get_args(type_hint)
+
+    # Handle common cases first
+    if origin is list or origin is list:
+        if args:
+            return f"list[{_format_type_to_string(args[0])}]"
+        return "list[Any]"  # Or just "list"
+    elif origin is dict or origin is dict:
+        if args and len(args) == 2:
+            return f"dict[{_format_type_to_string(args[0])}, {_format_type_to_string(args[1])}]"
+        return "dict[Any, Any]"  # Or just "dict"
+    elif origin is Union or origin is types.UnionType:
+        # Handle Optional[T] as Union[T, NoneType]
+        if len(args) == 2 and type(None) in args:
+            inner_type = next(t for t in args if t is not type(None))
+            return _format_type_to_string(inner_type)
+        # return f"Optional[{_format_type_to_string(inner_type)}]"
+        return (
+            f"Union[{', '.join(_format_type_to_string(arg) for arg in args)}]"
+        )
+    elif origin is Literal:
+        formatted_args = []
+        for arg in args:
+            if isinstance(arg, str):
+                formatted_args.append(f"'{arg}'")
+            else:
+                formatted_args.append(str(arg))
+        return f"Literal[{', '.join(formatted_args)}]"
+    elif hasattr(
+        type_hint, "__forward_arg__"
+    ):  # Handle ForwardRefs if necessary
+        return type_hint.__forward_arg__
+    elif hasattr(type_hint, "__name__"):
+        # Handle custom types registered in registry (get preferred name)
+        registry = get_registry()
+        for (
+            name,
+            reg_type,
+        ) in registry._types.items():  # Access internal for lookup
+            if reg_type == type_hint:
+                return name  # Return registered name
+        return type_hint.__name__  # Fallback to class name if not registered
+    else:
+        # Fallback for complex types or types not handled above
+        type_repr = str(type_hint).replace("typing.", "")  # Basic cleanup
+        type_repr = str(type_hint).replace("| None", "")
+        type_repr = type_repr.strip()
+        logger.debug(
+            f"Using fallback string representation for type: {type_repr}"
+        )
+        return type_repr
 
 
 def extract_identifiers_from_type_str(type_str: str) -> set[str]:

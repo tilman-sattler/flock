@@ -1,306 +1,326 @@
+# src/flock/core/util/hydrator.py (Revised - Simpler)
+
 import asyncio
 import json
-from typing import get_origin, get_type_hints
+from typing import (
+    Any,
+    TypeVar,
+    get_type_hints,
+)
+
+from pydantic import BaseModel
+
+# Import necessary Flock components
+from flock.core import Flock, FlockFactory
+from flock.core.logging.logging import get_logger
+
+# Import helper to format type hints back to strings
+from flock.core.serialization.serialization_utils import _format_type_to_string
+
+logger = get_logger("hydrator")
+T = TypeVar("T", bound=BaseModel)
 
 
-# -----------------------------------------------------------
-# Dummy FlockAgent for demonstration:
-# -----------------------------------------------------------
-class FlockAgent:
-    def __init__(self, name, input, output, model, description):
-        self.name = name
-        self.input = input
-        self.output = output
-        self.model = model
-        self.description = description
+def flockclass(
+    model: str = "openai/gpt-4o", agent_description: str | None = None
+):
+    """Decorator to add a .hydrate() method to a Pydantic class.
+    Leverages a dynamic Flock agent to fill missing (None) fields.
 
-    async def evaluate(self, data: dict) -> dict:
-        """Pretend LLM call.
-        We'll parse self.output to see which keys we want,
-        then generate some placeholders for those keys.
-        """
-        print(
-            f"[FlockAgent] Evaluate called for agent {self.name} with data: {data}"
-        )
+    Args:
+        model: The default LLM model identifier to use for hydration.
+        agent_description: An optional description for the dynamically created agent.
+    """
 
-        # Very naive parse of output string: "title: str | desc, budget: int | desc, ..."
-        fields = []
-        for out_part in self.output.split(","):
-            out_part = out_part.strip()
-            # out_part might look like: "title: str | property of MyBlogPost"
-            if not out_part:
-                continue
-            field_name = out_part.split(":")[0].strip()
-            fields.append(field_name)
+    def decorator(cls: type[T]) -> type[T]:
+        if not issubclass(cls, BaseModel):
+            raise TypeError(
+                "@flockclass can only decorate Pydantic BaseModel subclasses."
+            )
 
-        # We'll pretend the LLM returns either an integer for int fields or a string for others:
-        response = {}
-        for f in fields:
-            if " int" in self.output:  # naive
-                response[f] = 42
-            else:
-                response[f] = f"Generated data for {f}"
-        return response
+        # Store metadata on the class
+        setattr(cls, "__flock_model__", model)
+        setattr(cls, "__flock_agent_description__", agent_description)
 
+        # --- Attach the async hydrate method directly ---
+        async def hydrate_async(self) -> T:
+            """Hydrates the object by filling None fields using a dynamic Flock agent.
+            Uses existing non-None fields as input context.
+            Returns the hydrated object (self).
+            """
+            class_name = self.__class__.__name__
+            logger.info(f"Starting hydration for instance of {class_name}")
 
-# -----------------------------------------------------------
-# Optional: a decorator that marks a class as "flockclass"
-# -----------------------------------------------------------
-def flockclass(model: str):
-    def decorator(cls):
-        cls.__is_flockclass__ = True
-        cls.__flock_model__ = model
+            # Get field information
+            all_fields, type_hints = _get_model_fields(self, class_name)
+            if all_fields is None or type_hints is None:
+                return self  # Return early if field introspection failed
+
+            # Identify existing and missing fields
+            existing_data, missing_fields = _identify_fields(self, all_fields)
+
+            if not missing_fields:
+                logger.info(f"No fields to hydrate for {class_name} instance.")
+                return self
+
+            logger.debug(f"{class_name}: Fields to hydrate: {missing_fields}")
+            logger.debug(
+                f"{class_name}: Existing data for context: {json.dumps(existing_data, default=str)}"
+            )
+
+            # Create agent signatures
+            input_str, output_str, input_parts = _build_agent_signatures(
+                existing_data,
+                missing_fields,
+                type_hints,
+                all_fields,
+                class_name,
+            )
+
+            # Create and run agent
+            result = await _run_hydration_agent(
+                self,
+                input_str,
+                output_str,
+                input_parts,
+                existing_data,
+                class_name,
+            )
+            if result is None:
+                return self  # Return early if agent run failed
+
+            # Update object fields with results
+            _update_fields_with_results(
+                self, result, missing_fields, class_name
+            )
+
+            return self
+
+        # --- Attach the sync hydrate method directly ---
+        def hydrate(self) -> T:
+            """Synchronous wrapper for the async hydrate method."""
+            try:
+                # Try to get the current running loop
+                loop = asyncio.get_running_loop()
+
+                # If we reach here, there is a running loop
+                if loop.is_running():
+                    # This runs the coroutine in the existing loop from a different thread
+                    import concurrent.futures
+
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            asyncio.run, hydrate_async(self)
+                        )
+                        return future.result()
+                else:
+                    # There's a loop but it's not running
+                    return loop.run_until_complete(hydrate_async(self))
+
+            except RuntimeError:  # No running loop
+                # If no loop is running, create a new one and run our coroutine
+                return asyncio.run(hydrate_async(self))
+
+        # Attach the methods to the class
+        setattr(cls, "hydrate_async", hydrate_async)
+        setattr(cls, "hydrate", hydrate)
+        setattr(
+            cls, "hydrate_sync", hydrate
+        )  # Alias for backward compatibility
+
+        logger.debug(f"Attached hydrate methods to class {cls.__name__}")
         return cls
 
     return decorator
 
 
-# -----------------------------------------------------------
-# Utility sets
-# -----------------------------------------------------------
-BASIC_TYPES = {str, int, float, bool}
-
-
-# -----------------------------------------------------------
-# The main hydrator that can handle:
-#   - basic types (do nothing)
-#   - user-defined classes (auto-fill missing fields + recurse)
-#   - lists (ask LLM how many items to create + fill them)
-#   - dicts (ask LLM how many key->value pairs to create + fill them)
-# -----------------------------------------------------------
-def hydrate_object(obj, model="gpt-4", class_name=None):
-    """Recursively hydrates the object in-place,
-    calling an LLM for missing fields or structure.
-    """
-    # 1) If None or basic, do nothing
-    if obj is None or isinstance(obj, (str, int, float, bool)):
-        return
-
-    # 2) If list, check if it is empty => ask the LLM how many items we need
-    if isinstance(obj, list):
-        if len(obj) == 0:
-            # We'll do a single LLM call to decide how many items to put in:
-            # In real usage, you'd put a more robust prompt.
-            list_agent = FlockAgent(
-                name=f"{class_name or 'list'}Generator",
-                input="Generate number of items for this list",
-                output="count: int | number of items to create",
-                model=model,
-                description="Agent that decides how many items to create in a list.",
+def _get_model_fields(
+    obj: BaseModel, class_name: str
+) -> tuple[dict | None, dict | None]:
+    """Extracts field information from a Pydantic model, handling v1/v2 compatibility."""
+    try:
+        if hasattr(obj, "model_fields"):  # Pydantic v2
+            all_fields = obj.model_fields
+            type_hints = {
+                name: field.annotation for name, field in all_fields.items()
+            }
+        else:  # Pydantic v1 fallback
+            type_hints = get_type_hints(obj.__class__)
+            all_fields = getattr(
+                obj, "__fields__", {name: None for name in type_hints}
             )
-            result = asyncio.run(list_agent.evaluate({}))
-            num_items = result.get("count", 0)
-            # We'll assume the list should hold some type T.
-            # But in Python, we rarely store that info in the runtime.
-            # For demonstration, let's just store dummy strings or we can guess "object".
-            for i in range(num_items):
-                # For demonstration, create a simple string or dict
-                # If you want a typed approach, you'll need additional metadata or pass in generics
-                item = f"Generated item {i + 1}"
-                obj.append(item)
+        return all_fields, type_hints
+    except Exception as e:
+        logger.error(
+            f"Could not get fields/type hints for {class_name}: {e}",
+            exc_info=True,
+        )
+        return None, None
 
-        # Now recursively fill each item
-        for i in range(len(obj)):
-            hydrate_object(
-                obj[i],
-                model=model,
-                class_name=f"{class_name or 'list'}[item={i}]",
-            )
-        return
 
-    # 3) If dict, check if it is empty => ask LLM for which keys to create
-    if isinstance(obj, dict):
-        if len(obj) == 0:
-            # We'll do a single LLM call that returns a list of keys
-            dict_agent = FlockAgent(
-                name=f"{class_name or 'dict'}Generator",
-                input="Generate keys for this dict",
-                output="keys: str | comma-separated list of keys to create",
-                model=model,
-                description="Agent that decides which keys to create in a dict.",
-            )
-            result = asyncio.run(dict_agent.evaluate({}))
-            keys_str = result.get("keys", "")
-            keys = [k.strip() for k in keys_str.split(",") if k.strip()]
+def _identify_fields(
+    obj: BaseModel, all_fields: dict
+) -> tuple[dict[str, Any], list[str]]:
+    """Identifies existing (non-None) and missing fields in the object."""
+    existing_data: dict[str, Any] = {}
+    missing_fields: list[str] = []
 
-            # For demonstration, let's assume the dict holds sub-objects that we can fill further
-            # We'll create a plain dict or plain string for each key
-            for k in keys:
-                obj[k] = f"Placeholder for {k}"
-
-        # Now recursively fill each value
-        for key, val in obj.items():
-            hydrate_object(
-                val,
-                model=model,
-                class_name=f"{class_name or 'dict'}[key={key}]",
-            )
-        return
-
-    # 4) If it's a user-defined class with annotations, fill missing fields
-    cls = type(obj)
-    if hasattr(cls, "__annotations__"):
-        # If there's a model stored on the class, we can use that. Else fallback to the default
-        used_model = getattr(cls, "__flock_model__", model)
-
-        # Figure out which fields are missing or None
-        type_hints = get_type_hints(cls)
-        missing_basic_fields = []
-        complex_fields = []
-        for field_name, field_type in type_hints.items():
-            value = getattr(obj, field_name, None)
-            if value is None:
-                # It's missing. See if it's a basic type or complex
-                if _is_basic_type(field_type):
-                    missing_basic_fields.append(field_name)
-                else:
-                    complex_fields.append(field_name)
+    for field_name in all_fields:
+        if hasattr(obj, field_name):  # Check if attribute exists
+            value = getattr(obj, field_name)
+            if value is not None:
+                existing_data[field_name] = value
             else:
-                # Already has some value, but if it's a complex type, we should recurse
-                if not _is_basic_type(field_type):
-                    complex_fields.append(field_name)
+                missing_fields.append(field_name)
 
-        # If we have missing basic fields, do a single LLM call to fill them
-        if missing_basic_fields:
-            input_str = (
-                f"Existing data: {json.dumps(obj.__dict__, default=str)}"
-            )
-            output_fields_str = []
-            for bf in missing_basic_fields:
-                bf_type = type_hints[bf]
-                bf_type_name = (
-                    bf_type.__name__
-                    if hasattr(bf_type, "__name__")
-                    else str(bf_type)
-                )
-                desc = f"property of a class named {cls.__name__}"
-                output_fields_str.append(f"{bf}: {bf_type_name} | {desc}")
-
-            agent = FlockAgent(
-                name=cls.__name__,
-                input=input_str,
-                output=", ".join(output_fields_str),
-                model=used_model,
-                description=f"Agent for {cls.__name__}",
-            )
-            result = asyncio.run(agent.evaluate(obj.__dict__))
-            for bf in missing_basic_fields:
-                if bf in result:
-                    setattr(obj, bf, result[bf])
-
-        # For each "complex" field, instantiate if None + recurse
-        for cf in complex_fields:
-            cf_value = getattr(obj, cf, None)
-            cf_type = type_hints[cf]
-
-            if cf_value is None:
-                # We need to create something of the appropriate type
-                new_val = _instantiate_type(cf_type)
-                setattr(obj, cf, new_val)
-                hydrate_object(
-                    new_val, model=used_model, class_name=cf_type.__name__
-                )
-            else:
-                # Recurse into it
-                hydrate_object(
-                    cf_value, model=used_model, class_name=cf_type.__name__
-                )
-
-    else:
-        # It's some Python object with no annotations -> do nothing
-        pass
+    return existing_data, missing_fields
 
 
-# -----------------------------------------------------------
-# Helper: is a type "basic"?
-# -----------------------------------------------------------
-def _is_basic_type(t):
-    if t in BASIC_TYPES:
-        return True
-    # You may want to check for Optionals or Unions
-    # e.g., if get_origin(t) == Union, parse that, etc.
-    return False
+def _build_agent_signatures(
+    existing_data: dict[str, Any],
+    missing_fields: list[str],
+    type_hints: dict,
+    all_fields: dict,
+    class_name: str,
+) -> tuple[str, str, list]:
+    """Builds input and output signatures for the dynamic agent."""
+    # Input signature based on existing data
+    input_parts = []
+    for name in existing_data:
+        field_type = type_hints.get(name, Any)
+        type_str = _format_type_to_string(field_type)
+        field_info = all_fields.get(name)
+        field_desc = getattr(field_info, "description", "")
+        if field_desc:
+            input_parts.append(f"{name}: {type_str} | {field_desc}")
+        else:
+            input_parts.append(f"{name}: {type_str}")
+
+    input_str = (
+        ", ".join(input_parts)
+        if input_parts
+        else "context_info: dict | Optional context if no fields have values"
+    )
+
+    # Output signature based on missing fields
+    output_parts = []
+    for name in missing_fields:
+        field_type = type_hints.get(name, Any)
+        type_str = _format_type_to_string(field_type)
+        field_info = all_fields.get(name)
+        field_desc = getattr(field_info, "description", "")
+        if field_desc:
+            output_parts.append(f"{name}: {type_str} | {field_desc}")
+        else:
+            output_parts.append(f"{name}: {type_str}")
+
+    output_str = ", ".join(output_parts)
+
+    return input_str, output_str, input_parts
 
 
-# -----------------------------------------------------------
-# Helper: instantiate a type (list, dict, or user-defined)
-# -----------------------------------------------------------
-def _instantiate_type(t):
-    origin = get_origin(t)
-    if origin is list:
-        return []
-    if origin is dict:
-        return {}
+async def _run_hydration_agent(
+    obj: BaseModel,
+    input_str: str,
+    output_str: str,
+    input_parts: list,
+    existing_data: dict[str, Any],
+    class_name: str,
+) -> dict[str, Any] | None:
+    """Creates and runs a dynamic Flock agent to hydrate the object."""
+    # Agent configuration
+    agent_name = f"hydrator_{class_name}_{id(obj)}"
+    description = (
+        getattr(obj, "__flock_agent_description__", None)
+        or f"Agent that completes missing data for a {class_name} object."
+    )
+    hydration_model = getattr(obj, "__flock_model__", "openai/gpt-4o")
 
-    # If it's a built-in basic type, return None (we fill it from LLM).
-    if t in BASIC_TYPES:
+    logger.debug(f"Creating dynamic agent '{agent_name}' for {class_name}")
+    logger.debug(f"  Input Schema: {input_str}")
+    logger.debug(f"  Output Schema: {output_str}")
+
+    try:
+        # Create agent
+        dynamic_agent = FlockFactory.create_default_agent(
+            name=agent_name,
+            description=description,
+            input=input_str,
+            output=output_str,
+            model=hydration_model,
+            no_output=True,
+            use_cache=False,
+        )
+
+        # Create temporary Flock
+        temp_flock = Flock(
+            name=f"temp_hydrator_flock_{agent_name}",
+            model=hydration_model,
+            enable_logging=False,
+            show_flock_banner=False,
+        )
+        temp_flock.add_agent(dynamic_agent)
+
+        # Prepare input data
+        agent_input_data = (
+            existing_data
+            if input_parts
+            else {"context_info": {"object_type": class_name}}
+        )
+
+        logger.info(
+            f"Running hydration agent '{agent_name}' for {class_name}..."
+        )
+
+        # Run agent
+        result = await temp_flock.run_async(
+            start_agent=agent_name,
+            input=agent_input_data,
+            box_result=False,
+        )
+        logger.info(
+            f"Hydration agent returned for {class_name}: {list(result.keys())}"
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(
+            f"Hydration agent creation or run failed for {class_name}: {e}",
+            exc_info=True,
+        )
         return None
 
-    # If it's a user-defined class
-    if isinstance(t, type):
-        try:
-            # Attempt parameterless init
-            return t()
-        except:
-            # Or try __new__
+
+def _update_fields_with_results(
+    obj: BaseModel,
+    result: dict[str, Any],
+    missing_fields: list[str],
+    class_name: str,
+) -> None:
+    """Updates object fields with results from the hydration agent."""
+    updated_count = 0
+    for field_name in missing_fields:
+        if field_name in result:
             try:
-                return t.__new__(t)
-            except:
-                return None
-    return None
+                setattr(obj, field_name, result[field_name])
+                logger.debug(
+                    f"Hydrated field '{field_name}' in {class_name} with value: {getattr(obj, field_name)}"
+                )
+                updated_count += 1
+            except Exception as e:
+                logger.warning(
+                    f"Failed to set hydrated value for '{field_name}' in {class_name}: {e}. Value received: {result[field_name]}"
+                )
+        else:
+            logger.warning(
+                f"Hydration result missing expected field for {class_name}: '{field_name}'"
+            )
+
+    logger.info(
+        f"Hydration complete for {class_name}. Updated {updated_count}/{len(missing_fields)} fields."
+    )
 
 
-# -----------------------------------------------------------
-# Example classes
-# -----------------------------------------------------------
-@flockclass("gpt-4")
-class LongContent:
-    title: str
-    content: str
-
-
-@flockclass("gpt-4")
-class MyBlogPost:
-    title: str
-    headers: str
-    # We'll have a dict of key->LongContent
-    content: dict[str, LongContent]
-
-
-@flockclass("gpt-4")
-class MyProjectPlan:
-    project_idea: str
-    budget: int
-    title: str
-    content: MyBlogPost
-
-
-# -----------------------------------------------------------
-# Demo
-# -----------------------------------------------------------
-if __name__ == "__main__":
-    plan = MyProjectPlan()
-    plan.project_idea = "a declarative agent framework"
-    plan.budget = 100000
-
-    # content is None by default, so the hydrator will create MyBlogPost
-    # and fill it in. MyBlogPost.content is a dict[str, LongContent],
-    # also None -> becomes an empty dict -> we let the LLM decide the keys.
-
-    hydrate_object(plan, model="gpt-4", class_name="MyProjectPlan")
-
-    print("\n--- MyProjectPlan hydrated ---")
-    for k, v in plan.__dict__.items():
-        print(f"{k} = {v}")
-    if plan.content:
-        print("\n--- MyBlogPost hydrated ---")
-        for k, v in plan.content.__dict__.items():
-            print(f"  {k} = {v}")
-            if k == "content" and isinstance(v, dict):
-                print("    (keys) =", list(v.keys()))
-                for sub_k, sub_val in v.items():
-                    print(f"    {sub_k} -> {sub_val}")
-                    if isinstance(sub_val, LongContent):
-                        print(
-                            f"       -> LongContent fields: {sub_val.__dict__}"
-                        )
+# Ensure helper functions are available
+# from flock.core.serialization.serialization_utils import _format_type_to_string

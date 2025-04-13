@@ -78,9 +78,11 @@ nav:
       - Configuration: getting-started/configuration.md
   - Interacting with Flock:
       - Overview: interacting-with-flock/index.md
-      - CLI: interacting-with-flock/cli.md
-      - API: interacting-with-flock/api.md
+      - Programmatic API: interacting-with-flock/programmatic.md
+      - REST API: interacting-with-flock/rest-api.md
       - Web UI: interacting-with-flock/web-ui.md
+      - Interactive CLI: interacting-with-flock/interactive-cli.md
+      - CLI Tool: interacting-with-flock/cli-tool.md
   - Core Concepts:
       - Overview: core-concepts/index.md
       - Agents: core-concepts/agents.md

@@ -79,6 +79,7 @@ COLOR_MAP = {
     "api.ui.routes": "light-blue",
     "api.ui.utils": "cyan",
     # Default/Unknown
+    "evaluators.declarative": "light-green",
     "unknown": "light-black",
 }
 
@@ -90,6 +91,7 @@ LOGGERS = [
     "serialization",  # General serialization (new - can be base for others)
     "serialization.utils",  # Serialization helpers (new, more specific)
     "evaluator",  # Base evaluator category (new/optional)
+    "evaluators.declarative",  # Declarative evaluator specifics
     "module",  # Base module category (new/optional)
     "router",  # Base router category (new/optional)
     "mixin.dspy",  # DSPy integration specifics (new)
