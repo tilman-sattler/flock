@@ -1,5 +1,3 @@
-# 🚀 Flock: The Declarative AI Agent Framework 🚀
-
 <p align="center">
   <!-- Placeholder for your Flock Logo/Banner - Replace URL -->
   <img alt="Flock Banner" src="https://raw.githubusercontent.com/whiteducksoftware/flock/master/docs/assets/images/flock.png" width="600">
@@ -49,6 +47,11 @@ Flock offers a different way to build agentic systems:
 | *Hard to unit test prompt logic*      | *Clear I/O contracts aid testing*      |
 | 📄 **Unstructured Output**             | ✨ **Structured Data Handling**         |
 | *Parsing unreliable LLM text output*  | *Native Pydantic/Typed Dict support*   |
+
+
+## 📹 Video Demo
+
+https://github.com/user-attachments/assets/bdab4786-d532-459f-806a-024727164dcc
 
 ## 💡 Core Concepts
 
