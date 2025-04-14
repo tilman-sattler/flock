@@ -57,9 +57,7 @@ def _format_type_to_string(type_hint: type) -> str:
             inner_type = next(t for t in args if t is not type(None))
             return _format_type_to_string(inner_type)
         # return f"Optional[{_format_type_to_string(inner_type)}]"
-        return (
-            f"Union[{', '.join(_format_type_to_string(arg) for arg in args)}]"
-        )
+        return f"Union[{', '.join(_format_type_to_string(arg) for arg in args)}]"
     elif origin is Literal:
         formatted_args = []
         for arg in args:
@@ -68,9 +66,7 @@ def _format_type_to_string(type_hint: type) -> str:
             else:
                 formatted_args.append(str(arg))
         return f"Literal[{', '.join(formatted_args)}]"
-    elif hasattr(
-        type_hint, "__forward_arg__"
-    ):  # Handle ForwardRefs if necessary
+    elif hasattr(type_hint, "__forward_arg__"):  # Handle ForwardRefs if necessary
         return type_hint.__forward_arg__
     elif hasattr(type_hint, "__name__"):
         # Handle custom types registered in registry (get preferred name)
@@ -87,9 +83,7 @@ def _format_type_to_string(type_hint: type) -> str:
         type_repr = str(type_hint).replace("typing.", "")  # Basic cleanup
         type_repr = str(type_hint).replace("| None", "")
         type_repr = type_repr.strip()
-        logger.debug(
-            f"Using fallback string representation for type: {type_repr}"
-        )
+        logger.debug(f"Using fallback string representation for type: {type_repr}")
         return type_repr
 
 
@@ -199,9 +193,7 @@ def serialize_item(item: Any) -> Any:
         dumped = item.model_dump(mode="json", exclude_none=True)
         return serialize_item(dumped)
     elif callable(item) and not isinstance(item, type):
-        path_str = FlockRegistry.get_callable_path_string(
-            item
-        )  # Use registry helper
+        path_str = FlockRegistry.get_callable_path_string(item)  # Use registry helper
         if path_str:
             return {"__callable_ref__": path_str}
         else:
@@ -226,9 +218,7 @@ def serialize_item(item: Any) -> Any:
         )  # Check regular types/classes by path
         if type_name:
             return {"__type_ref__": type_name}
-        logger.warning(
-            f"Could not serialize type object {item}, storing as string."
-        )
+        logger.warning(f"Could not serialize type object {item}, storing as string.")
         return str(item)
     else:
         # Return basic types as is
@@ -283,9 +273,7 @@ def deserialize_item(item: Any) -> Any:
                         mod = importlib.import_module(module_name)
                     type_obj = getattr(mod, class_name)
                     if isinstance(type_obj, type):
-                        FlockRegistry.register_type(
-                            type_obj, type_name
-                        )  # Cache it
+                        FlockRegistry.register_type(type_obj, type_name)  # Cache it
                         return type_obj
                     else:
                         raise TypeError()
@@ -306,9 +294,7 @@ def deserialize_item(item: Any) -> Any:
 
 
 # --- Component Deserialization Helper ---
-def deserialize_component(
-    data: dict | None, expected_base_type: type
-) -> Any | None:
+def deserialize_component(data: dict | None, expected_base_type: type) -> Any | None:
     """Deserializes a component (Module, Evaluator, Router) from its dict representation.
     Uses the 'type' field to find the correct class via FlockRegistry.
     """
@@ -320,14 +306,10 @@ def deserialize_component(
     if data is None:
         return None
     if not isinstance(data, dict):
-        logger.error(
-            f"Expected dict for component deserialization, got {type(data)}"
-        )
+        logger.error(f"Expected dict for component deserialization, got {type(data)}")
         return None
 
-    type_name = data.get(
-        "type"
-    )  # Assuming 'type' key holds the class name string
+    type_name = data.get("type")  # Assuming 'type' key holds the class name string
     if not type_name:
         logger.error(f"Component data missing 'type' field: {data}")
         return None
@@ -335,9 +317,7 @@ def deserialize_component(
     try:
         ComponentClass = FlockRegistry.get_component(type_name)  # Use registry
         # Optional: Keep the base type check
-        if COMPONENT_BASE_TYPES and not issubclass(
-            ComponentClass, expected_base_type
-        ):
+        if COMPONENT_BASE_TYPES and not issubclass(ComponentClass, expected_base_type):
             raise TypeError(
                 f"Deserialized class {type_name} is not a subclass of {expected_base_type.__name__}"
             )

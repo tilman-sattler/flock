@@ -21,9 +21,7 @@ logger = get_logger("hydrator")
 T = TypeVar("T", bound=BaseModel)
 
 
-def flockclass(
-    model: str = "openai/gpt-4o", agent_description: str | None = None
-):
+def flockclass(model: str = "openai/gpt-4o", agent_description: str | None = None):
     """Decorator to add a .hydrate() method to a Pydantic class.
     Leverages a dynamic Flock agent to fill missing (None) fields.
 
@@ -90,9 +88,7 @@ def flockclass(
                 return self  # Return early if agent run failed
 
             # Update object fields with results
-            _update_fields_with_results(
-                self, result, missing_fields, class_name
-            )
+            _update_fields_with_results(self, result, missing_fields, class_name)
 
             return self
 
@@ -109,9 +105,7 @@ def flockclass(
                     import concurrent.futures
 
                     with concurrent.futures.ThreadPoolExecutor() as executor:
-                        future = executor.submit(
-                            asyncio.run, hydrate_async(self)
-                        )
+                        future = executor.submit(asyncio.run, hydrate_async(self))
                         return future.result()
                 else:
                     # There's a loop but it's not running
@@ -124,9 +118,7 @@ def flockclass(
         # Attach the methods to the class
         setattr(cls, "hydrate_async", hydrate_async)
         setattr(cls, "hydrate", hydrate)
-        setattr(
-            cls, "hydrate_sync", hydrate
-        )  # Alias for backward compatibility
+        setattr(cls, "hydrate_sync", hydrate)  # Alias for backward compatibility
 
         logger.debug(f"Attached hydrate methods to class {cls.__name__}")
         return cls
@@ -141,14 +133,10 @@ def _get_model_fields(
     try:
         if hasattr(obj, "model_fields"):  # Pydantic v2
             all_fields = obj.model_fields
-            type_hints = {
-                name: field.annotation for name, field in all_fields.items()
-            }
+            type_hints = {name: field.annotation for name, field in all_fields.items()}
         else:  # Pydantic v1 fallback
             type_hints = get_type_hints(obj.__class__)
-            all_fields = getattr(
-                obj, "__fields__", {name: None for name in type_hints}
-            )
+            all_fields = getattr(obj, "__fields__", {name: None for name in type_hints})
         return all_fields, type_hints
     except Exception as e:
         logger.error(
@@ -268,9 +256,7 @@ async def _run_hydration_agent(
             else {"context_info": {"object_type": class_name}}
         )
 
-        logger.info(
-            f"Running hydration agent '{agent_name}' for {class_name}..."
-        )
+        logger.info(f"Running hydration agent '{agent_name}' for {class_name}...")
 
         # Run agent
         result = await temp_flock.run_async(
@@ -278,9 +264,7 @@ async def _run_hydration_agent(
             input=agent_input_data,
             box_result=False,
         )
-        logger.info(
-            f"Hydration agent returned for {class_name}: {list(result.keys())}"
-        )
+        logger.info(f"Hydration agent returned for {class_name}: {list(result.keys())}")
 
         return result
 

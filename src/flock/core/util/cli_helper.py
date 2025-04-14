@@ -64,14 +64,14 @@ def init_console(clear_screen: bool = True, show_banner: bool = True):
     if show_banner:
         console.print(banner_text)
     console.print(
-        f"[italic]'Magpie'[/] milestone - [bold]white duck GmbH[/] - [cyan]https://whiteduck.de[/]\n"
+        "[italic]'Magpie'[/] milestone - [bold]white duck GmbH[/] - [cyan]https://whiteduck.de[/]\n"
     )
 
 
 def display_banner_no_version():
     """Display the Flock banner."""
     banner_text = Text(
-        f"""
+        """
 🦆    🐓     🐤     🐧
 ╭━━━━━━━━━━━━━━━━━━━━━━━━╮
 │ ▒█▀▀▀ █░░ █▀▀█ █▀▀ █░█ │
@@ -84,4 +84,4 @@ def display_banner_no_version():
         style="bold orange3",
     )
     console.print(banner_text)
-    console.print(f"[bold]white duck GmbH[/] - [cyan]https://whiteduck.de[/]\n")
+    console.print("[bold]white duck GmbH[/] - [cyan]https://whiteduck.de[/]\n")

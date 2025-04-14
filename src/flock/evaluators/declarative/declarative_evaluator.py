@@ -35,9 +35,7 @@ class DeclarativeEvaluatorConfig(FlockEvaluatorConfig):
     kwargs: dict[str, Any] = Field(default_factory=dict)
 
 
-class DeclarativeEvaluator(
-    FlockEvaluator, DSPyIntegrationMixin, PromptParserMixin
-):
+class DeclarativeEvaluator(FlockEvaluator, DSPyIntegrationMixin, PromptParserMixin):
     """Evaluator that uses DSPy for generation."""
 
     config: DeclarativeEvaluatorConfig = Field(
@@ -91,14 +89,10 @@ class DeclarativeEvaluator(
 
         # --- Conditional Evaluation (Stream vs No Stream) ---
         if self.config.stream:
-            logger.info(
-                f"Evaluating agent '{agent.name}' with async streaming."
-            )
+            logger.info(f"Evaluating agent '{agent.name}' with async streaming.")
             if not callable(agent_task):
                 logger.error("agent_task is not callable, cannot stream.")
-                raise TypeError(
-                    "DSPy task could not be created or is not callable."
-                )
+                raise TypeError("DSPy task could not be created or is not callable.")
 
             streaming_task = dspy.streamify(agent_task)
             stream_generator: Generator = streaming_task(**inputs)
@@ -118,9 +112,7 @@ class DeclarativeEvaluator(
                 if delta_content:
                     console.print(delta_content, end="")
 
-                result_dict, cost, lm_history = self._process_result(
-                    chunk, inputs
-                )
+                result_dict, cost, lm_history = self._process_result(chunk, inputs)
                 self.cost = cost
                 self.lm_history = lm_history
 
@@ -134,9 +126,7 @@ class DeclarativeEvaluator(
             try:
                 # Ensure the call is awaited if the underlying task is async
                 result_obj = agent_task(**inputs)
-                result_dict, cost, lm_history = self._process_result(
-                    result_obj, inputs
-                )
+                result_dict, cost, lm_history = self._process_result(result_obj, inputs)
                 self.cost = cost
                 self.lm_history = lm_history
                 return self.filter_thought_process(
