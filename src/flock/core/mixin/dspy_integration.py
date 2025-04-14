@@ -336,8 +336,9 @@ class DSPyIntegrationMixin:
     def _select_task(
         self,
         signature: Any,
-        agent_type_override: AgentType,
+        override_evaluator_type: AgentType,
         tools: list[Any] | None = None,
+        kwargs: dict[str, Any] = {},
     ) -> Any:
         """Select and instantiate the appropriate DSPy Program/Module."""
         try:
@@ -360,7 +361,7 @@ class DSPyIntegrationMixin:
                     )
 
         dspy_program = None
-        selected_type = agent_type_override
+        selected_type = override_evaluator_type
 
         # Determine type if not overridden
         if not selected_type:
@@ -374,11 +375,12 @@ class DSPyIntegrationMixin:
 
         try:
             if selected_type == "ChainOfThought":
-                dspy_program = dspy.ChainOfThought(signature)
+                dspy_program = dspy.ChainOfThought(signature, **kwargs)
             elif selected_type == "ReAct":
-                # ReAct requires tools, even if empty list
+                if not kwargs:
+                    kwargs = {"max_iters": 10}
                 dspy_program = dspy.ReAct(
-                    signature, tools=processed_tools or [], max_iters=10
+                    signature, tools=processed_tools or [], **kwargs
                 )
             elif selected_type == "Predict":  # Default or explicitly Completion
                 dspy_program = dspy.Predict(signature)
@@ -401,8 +403,10 @@ class DSPyIntegrationMixin:
 
     def _process_result(
         self, result: Any, inputs: dict[str, Any]
-    ) -> dict[str, Any]:
+    ) -> tuple[dict[str, Any], float, list]:
         """Convert the DSPy result object to a dictionary."""
+        import dspy
+
         if result is None:
             logger.warning("DSPy program returned None result.")
             return {}
@@ -429,7 +433,12 @@ class DSPyIntegrationMixin:
             logger.debug(f"Processed DSPy result to dict: {output_dict}")
             # Optionally merge inputs back if desired (can make result dict large)
             final_result = {**inputs, **output_dict}
-            return final_result
+
+            lm = dspy.settings.get("lm")
+            cost = sum([x["cost"] for x in lm.history if x["cost"] is not None])
+            lm_history = lm.inspect_history()
+
+            return final_result, cost, lm_history
 
         except Exception as conv_error:
             logger.error(
