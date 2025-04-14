@@ -35,9 +35,7 @@ class DeclarativeEvaluatorConfig(FlockEvaluatorConfig):
     kwargs: dict[str, Any] = Field(default_factory=dict)
 
 
-class DeclarativeEvaluator(
-    FlockEvaluator, DSPyIntegrationMixin, PromptParserMixin
-):
+class DeclarativeEvaluator(FlockEvaluator, DSPyIntegrationMixin, PromptParserMixin):
     """Evaluator that uses DSPy for generation."""
 
     config: DeclarativeEvaluatorConfig = Field(
@@ -91,14 +89,10 @@ class DeclarativeEvaluator(
 
         # --- Conditional Evaluation (Stream vs No Stream) ---
         if self.config.stream:
-            logger.info(
-                f"Evaluating agent '{agent.name}' with async streaming."
-            )
+            logger.info(f"Evaluating agent '{agent.name}' with async streaming.")
             if not callable(agent_task):
                 logger.error("agent_task is not callable, cannot stream.")
-                raise TypeError(
-                    "DSPy task could not be created or is not callable."
-                )
+                raise TypeError("DSPy task could not be created or is not callable.")
 
             streaming_task = dspy.streamify(agent_task)
             stream_generator: Generator = streaming_task(**inputs)

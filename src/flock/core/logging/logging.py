@@ -144,9 +144,7 @@ def custom_format(record):
     level_name = record["level"].name
     category = record["extra"].get("category", "unknown")
     trace_id = record["extra"].get("trace_id", "no-trace")
-    color_tag = color_for_category(
-        category
-    )  # Get the color tag name (e.g., "yellow")
+    color_tag = color_for_category(category)  # Get the color tag name (e.g., "yellow")
 
     message = record["message"]
     message = message.replace("{", "{{").replace("}", "}}")
@@ -155,8 +153,7 @@ def custom_format(record):
     if len(message) > MAX_LENGTH:
         truncated_chars = len(message) - MAX_LENGTH
         message = (
-            message[:MAX_LENGTH]
-            + f"<yellow>...+({truncated_chars} chars)</yellow>"
+            message[:MAX_LENGTH] + f"<yellow>...+({truncated_chars} chars)</yellow>"
         )
 
     # Determine if category needs bolding (can refine this logic)
@@ -164,13 +161,9 @@ def custom_format(record):
 
     # Apply tags sequentially
     category_styled = f"[{category}]"  # Start with the plain category name
-    category_styled = (
-        f"<{color_tag}>{category_styled}</{color_tag}>"  # Wrap with color
-    )
+    category_styled = f"<{color_tag}>{category_styled}</{color_tag}>"  # Wrap with color
     if needs_bold:
-        category_styled = (
-            f"<bold>{category_styled}</bold>"  # Wrap with bold if needed
-        )
+        category_styled = f"<bold>{category_styled}</bold>"  # Wrap with bold if needed
 
     # Final format string using sequential tags for category
     return (
@@ -311,8 +304,7 @@ class FlockLogger:
         if len(message) > max_length:
             truncated_chars = len(message) - max_length
             return (
-                message[:max_length]
-                + f"...<yellow>+({truncated_chars} chars)</yellow>"
+                message[:max_length] + f"...<yellow>+({truncated_chars} chars)</yellow>"
             )
         return message
 
@@ -454,10 +446,7 @@ def get_module_loggers() -> list[FlockLogger]:
 def truncate_for_logging(obj, max_item_length=100, max_items=10):
     """Truncate large data structures for logging purposes."""
     if isinstance(obj, str) and len(obj) > max_item_length:
-        return (
-            obj[:max_item_length]
-            + f"... ({len(obj) - max_item_length} more chars)"
-        )
+        return obj[:max_item_length] + f"... ({len(obj) - max_item_length} more chars)"
     elif isinstance(obj, dict):
         if len(obj) > max_items:
             return {

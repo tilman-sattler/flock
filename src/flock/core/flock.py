@@ -350,13 +350,9 @@ class Flock(BaseModel, Serializable):
             try:
                 resolved_start_agent = self._agents.get(start_agent_name)
                 if not resolved_start_agent:
-                    resolved_start_agent = FlockRegistry.get_agent(
-                        start_agent_name
-                    )
+                    resolved_start_agent = FlockRegistry.get_agent(start_agent_name)
                     if not resolved_start_agent:
-                        raise ValueError(
-                            f"Start agent '{start_agent_name}' not found."
-                        )
+                        raise ValueError(f"Start agent '{start_agent_name}' not found.")
                     self.add_agent(resolved_start_agent)
 
                 run_context = context if context else FlockContext()
@@ -388,20 +384,15 @@ class Flock(BaseModel, Serializable):
 
                 # Execute workflow
                 if not self.enable_temporal:
-                    result = await run_local_workflow(
-                        run_context, box_result=False
-                    )
+                    result = await run_local_workflow(run_context, box_result=False)
                 else:
-                    result = await run_temporal_workflow(
-                        run_context, box_result=False
-                    )
+                    result = await run_temporal_workflow(run_context, box_result=False)
 
                 span.set_attribute("result.type", str(type(result)))
                 result_str = str(result)
                 span.set_attribute(
                     "result.preview",
-                    result_str[:1000]
-                    + ("..." if len(result_str) > 1000 else ""),
+                    result_str[:1000] + ("..." if len(result_str) > 1000 else ""),
                 )
 
                 if box_result:
@@ -409,17 +400,13 @@ class Flock(BaseModel, Serializable):
                         logger.debug("Boxing final result.")
                         return Box(result)
                     except ImportError:
-                        logger.warning(
-                            "Box library not installed, returning raw dict."
-                        )
+                        logger.warning("Box library not installed, returning raw dict.")
                         return result
                 else:
                     return result
 
             except Exception as e:
-                logger.error(
-                    f"Flock run '{self.name}' failed: {e}", exc_info=True
-                )
+                logger.error(f"Flock run '{self.name}' failed: {e}", exc_info=True)
                 span.record_exception(e)
                 span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
                 return {
