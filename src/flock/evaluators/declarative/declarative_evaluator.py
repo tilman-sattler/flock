@@ -112,7 +112,9 @@ class DeclarativeEvaluator(FlockEvaluator, DSPyIntegrationMixin, PromptParserMix
                 if delta_content:
                     console.print(delta_content, end="")
 
-                result_dict, cost, lm_history = self._process_result(chunk, inputs)
+                result_dict, cost, lm_history = self._process_result(
+                    chunk, inputs
+                )
                 self.cost = cost
                 self.lm_history = lm_history
 
@@ -126,7 +128,9 @@ class DeclarativeEvaluator(FlockEvaluator, DSPyIntegrationMixin, PromptParserMix
             try:
                 # Ensure the call is awaited if the underlying task is async
                 result_obj = agent_task(**inputs)
-                result_dict, cost, lm_history = self._process_result(result_obj, inputs)
+                result_dict, cost, lm_history = self._process_result(
+                    result_obj, inputs
+                )
                 self.cost = cost
                 self.lm_history = lm_history
                 return self.filter_thought_process(
@@ -140,7 +144,7 @@ class DeclarativeEvaluator(FlockEvaluator, DSPyIntegrationMixin, PromptParserMix
                 raise RuntimeError(f"Evaluation failed: {e}") from e
 
     def filter_thought_process(
-        result_dict: dict[str, Any], include_thought_process: bool
+        self, result_dict: dict[str, Any], include_thought_process: bool
     ) -> dict[str, Any]:
         """Filter out thought process from the result dictionary."""
         if include_thought_process:
