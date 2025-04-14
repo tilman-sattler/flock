@@ -224,7 +224,7 @@ class Flock(BaseModel, Serializable):
             raise ValueError("Agent must have a name.")
 
         if agent.name in self._agents:
-            logger.warning(f"Agent '{agent.name}' already exists. Overwriting.")
+            raise ValueError("Agent with this name already exists.")
         self._agents[agent.name] = agent
         FlockRegistry.register_agent(agent)  # Register globally
 
