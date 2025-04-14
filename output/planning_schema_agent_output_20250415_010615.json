@@ -1,0 +1,102 @@
+{
+  "agent": "planning_schema_agent",
+  "timestamp": "20250415_010615",
+  "output": {
+    "project_type": "web game development",
+    "root_element": {
+      "allowed_children": {
+        "GameProject": "single"
+      }
+    },
+    "implementation_plan": [
+      {
+        "node_type": "GameProject",
+        "display_name": "Game Project",
+        "icon": " GP ",
+        "allowed_children": {
+          "GameDesign": "single",
+          "DevelopmentPhase": "multiple",
+          "TestingPhase": "single",
+          "DeploymentPhase": "single"
+        }
+      },
+      {
+        "node_type": "GameDesign",
+        "display_name": "Game Design",
+        "icon": " D ",
+        "allowed_children": {
+          "GameMechanics": "single",
+          "ArtAssets": "single",
+          "AudioAssets": "single"
+        }
+      },
+      {
+        "node_type": "GameMechanics",
+        "display_name": "Game Mechanics",
+        "icon": " M ",
+        "allowed_children": {}
+      },
+      {
+        "node_type": "ArtAssets",
+        "display_name": "Art Assets",
+        "icon": " A ",
+        "allowed_children": {}
+      },
+      {
+        "node_type": "AudioAssets",
+        "display_name": "Audio Assets",
+        "icon": " AU ",
+        "allowed_children": {}
+      },
+      {
+        "node_type": "DevelopmentPhase",
+        "display_name": "Development Phase",
+        "icon": " DEV ",
+        "allowed_children": {
+          "FrontendTask": "multiple",
+          "BackendTask": "multiple"
+        }
+      },
+      {
+        "node_type": "FrontendTask",
+        "display_name": "Frontend Task",
+        "icon": " F ",
+        "allowed_children": {}
+      },
+      {
+        "node_type": "BackendTask",
+        "display_name": "Backend Task",
+        "icon": " B ",
+        "allowed_children": {}
+      },
+      {
+        "node_type": "TestingPhase",
+        "display_name": "Testing Phase",
+        "icon": " TST ",
+        "allowed_children": {
+          "TestCase": "multiple"
+        }
+      },
+      {
+        "node_type": "TestCase",
+        "display_name": "Test Case",
+        "icon": " TC ",
+        "allowed_children": {}
+      },
+      {
+        "node_type": "DeploymentPhase",
+        "display_name": "Deployment Phase",
+        "icon": " DEP ",
+        "allowed_children": {
+          "DeploymentTask": "multiple"
+        }
+      },
+      {
+        "node_type": "DeploymentTask",
+        "display_name": "Deployment Task",
+        "icon": " DT ",
+        "allowed_children": {}
+      }
+    ]
+  }
+}

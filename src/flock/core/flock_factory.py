@@ -32,7 +32,7 @@ class FlockFactory:
         output_theme: OutputTheme = OutputTheme.abernathy,
         wait_for_input: bool = False,
         temperature: float = 0.0,
-        max_tokens: int = 4096,
+        max_tokens: int = 8192,
         alert_latency_threshold_ms: int = 30000,
         no_output: bool = False,
         print_context: bool = False,

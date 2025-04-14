@@ -149,7 +149,7 @@ class IterativeListGeneratorRouter(FlockRouter):
         # Modify agent signature for the *next* iteration (add context_input_field, use item_output_field)
         # This is the trickiest part - how to modify the agent's perceived signature for the next run?
         # Option 1: Pass overrides via HandOffRequest (cleanest)
-        next_signature_input = f"{agent.input}, {self.config.context_input_field}: list | Previously generated items"  # Needs smarter joining
+        next_signature_input = f"{current_agent.input}, {self.config.context_input_field}: list | Previously generated items"  # Needs smarter joining
         next_signature_output = (
             self.config.item_output_field
         )  # Only ask for one item
