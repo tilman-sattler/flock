@@ -28,6 +28,10 @@ class DeclarativeEvaluatorConfig(FlockEvaluatorConfig):
         default=False,
         description="Enable streaming output from the underlying DSPy program.",
     )
+    include_thought_process: bool = Field(
+        default=False,
+        description="Include the thought process in the output.",
+    )
 
 
 class DeclarativeEvaluator(
@@ -112,7 +116,9 @@ class DeclarativeEvaluator(
                 result_dict = self._process_result(chunk, inputs)
 
             console.print("\n")
-            return result_dict
+            return self.filter_thought_process(
+                result_dict, self.config.include_thought_process
+            )
 
         else:  # Non-streaming path
             logger.info(f"Evaluating agent '{agent.name}' without streaming.")
@@ -120,10 +126,25 @@ class DeclarativeEvaluator(
                 # Ensure the call is awaited if the underlying task is async
                 result_obj = agent_task(**inputs)
                 result_dict = self._process_result(result_obj, inputs)
-                return result_dict
+                return self.filter_thought_process(
+                    result_dict, self.config.include_thought_process
+                )
             except Exception as e:
                 logger.error(
                     f"Error during non-streaming evaluation for agent '{agent.name}': {e}",
                     exc_info=True,
                 )
                 raise RuntimeError(f"Evaluation failed: {e}") from e
+
+    def filter_thought_process(
+        result_dict: dict[str, Any], include_thought_process: bool
+    ) -> dict[str, Any]:
+        """Filter out thought process from the result dictionary."""
+        if include_thought_process:
+            return result_dict
+        else:
+            return {
+                k: v
+                for k, v in result_dict.items()
+                if not (k.startswith("reasoning") or k.startswith("trajectory"))
+            }

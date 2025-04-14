@@ -38,6 +38,7 @@ class FlockFactory:
         print_context: bool = False,
         write_to_file: bool = False,
         stream: bool = False,
+        include_thought_process: bool = False,
     ) -> FlockAgent:
         """Creates a default FlockAgent.
 
@@ -52,6 +53,7 @@ class FlockFactory:
             max_tokens=max_tokens,
             temperature=temperature,
             stream=stream,
+            include_thought_process=include_thought_process,
         )
 
         evaluator = DeclarativeEvaluator(name="default", config=eval_config)
