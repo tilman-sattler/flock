@@ -408,7 +408,7 @@ class DSPyIntegrationMixin:
 
             lm = dspy.settings.get("lm")
             cost = sum([x["cost"] for x in lm.history if x["cost"] is not None])
-            lm_history = lm.inspect_history()
+            lm_history = lm.history
 
             return final_result, cost, lm_history
 
