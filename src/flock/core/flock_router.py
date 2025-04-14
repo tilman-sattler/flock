@@ -1,11 +1,14 @@
 """Base router class for the Flock framework."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, Field
 
 from flock.core.context.context import FlockContext
+
+if TYPE_CHECKING:
+    from flock.core.flock_agent import FlockAgent
 
 
 class HandOffRequest(BaseModel):
@@ -14,13 +17,26 @@ class HandOffRequest(BaseModel):
     next_agent: str = Field(default="", description="Next agent to invoke")
     # match = use the output fields of the current agent that also exists as input field of the next agent
     # add = add the output of the current agent to the input of the next agent
-    hand_off_mode: Literal["match", "add"] = Field(default="match")
-    override_next_agent: Any | None = Field(
+    output_to_input_merge_strategy: Literal["match", "add"] = Field(
+        default="match"
+    )
+    add_input_fields: list[str] | None = Field(
+        default=None,
+        description="List of input fields to add to the next agent",
+    )
+    add_output_fields: list[str] | None = Field(
+        default=None,
+        description="List of output fields to add to the next agent",
+    )
+    add_description: str | None = Field(
+        default=None, description="Add this description to the next agent"
+    )
+    override_next_agent: "FlockAgent | None" = Field(
         default=None,
         description="Override the next agent to hand off to",
     )
     override_context: FlockContext | None = Field(
-        default=None, descrio="Override context parameters"
+        default=None, description="Override context parameters"
     )
 
 
@@ -34,10 +50,10 @@ class FlockRouterConfig(BaseModel):
     enabled: bool = Field(
         default=True, description="Whether the router is enabled"
     )
-    agents: list[str] | None = Field(
-        default=None,
-        description="List of agents to choose from",
-    )
+    # agents: list[str] | None = Field(
+    #     default=None,
+    #     description="List of agents to choose from",
+    # )
 
 
 class FlockRouter(BaseModel, ABC):

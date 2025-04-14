@@ -105,7 +105,7 @@ class AgentRouter(FlockRouter):
             logger.warning("No available agents for agent-based routing")
             return HandOffRequest(
                 next_agent="",
-                hand_off_mode="add",
+                output_to_input_merge_strategy="add",
                 override_next_agent=None,
                 override_context=None,
             )
@@ -138,7 +138,7 @@ class AgentRouter(FlockRouter):
                 )
                 return HandOffRequest(
                     next_agent="",
-                    hand_off_mode="add",
+                    output_to_input_merge_strategy="add",
                     override_next_agent=None,
                     override_context=None,
                 )
@@ -150,7 +150,7 @@ class AgentRouter(FlockRouter):
                 )
                 return HandOffRequest(
                     next_agent="",
-                    hand_off_mode="add",
+                    output_to_input_merge_strategy="add",
                     override_next_agent=None,
                     override_context=None,
                 )
@@ -160,7 +160,7 @@ class AgentRouter(FlockRouter):
             )
             return HandOffRequest(
                 next_agent=next_agent_name,
-                hand_off_mode="add",
+                output_to_input_merge_strategy="add",
                 override_next_agent=None,
                 override_context=None,
             )
@@ -169,7 +169,7 @@ class AgentRouter(FlockRouter):
             logger.error(f"Error in agent-based routing: {e}")
             return HandOffRequest(
                 next_agent="",
-                hand_off_mode="add",
+                output_to_input_merge_strategy="add",
                 override_next_agent=None,
                 override_context=None,
             )

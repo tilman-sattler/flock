@@ -171,8 +171,24 @@ async def run_agent(context: FlockContext) -> dict:
                 # Prepare the next agent.
                 try:
                     agent = registry.get_agent(handoff_data.next_agent)
-                    if handoff_data.hand_off_mode == "add":
+                    if handoff_data.output_to_input_merge_strategy == "add":
                         agent.input = previous_agent_output + ", " + agent.input
+
+                    if handoff_data.add_input_fields:
+                        for field in handoff_data.add_input_fields:
+                            agent.input = field + ", " + agent.input
+
+                    if handoff_data.add_output_fields:
+                        for field in handoff_data.add_output_fields:
+                            agent.output = field + ", " + agent.output
+
+                    if handoff_data.add_description:
+                        agent.description = (
+                            agent.description
+                            + "\n"
+                            + handoff_data.add_description
+                        )
+
                     agent.resolve_callables(context=context)
                     if not agent:
                         logger.error(

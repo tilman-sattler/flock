@@ -429,80 +429,52 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
         )
         logger.debug(f"Base agent data for '{self.name}': {list(data.keys())}")
 
-        # --- Serialize Components using Registry Type Names ---
-        # Evaluator
-        if self.evaluator:
-            logger.debug(f"Serializing evaluator for agent '{self.name}'")
-            evaluator_type_name = FlockRegistry.get_component_type_name(
-                type(self.evaluator)
-            )
-            if evaluator_type_name:
-                # Recursively serialize the evaluator's dict representation
-                evaluator_dict = serialize_item(
-                    self.evaluator.model_dump(mode="json", exclude_none=True)
-                )
-                evaluator_dict["type"] = evaluator_type_name  # Add type marker
-                data["evaluator"] = evaluator_dict
-                logger.debug(
-                    f"Added evaluator of type '{evaluator_type_name}' to agent '{self.name}'"
-                )
-            else:
-                logger.warning(
-                    f"Could not get registered type name for evaluator {type(self.evaluator).__name__} in agent '{self.name}'. Skipping serialization."
-                )
+        def add_serialized_component(component: Any, field_name: str):
+            if component:
+                comp_type = type(component)
+                type_name = FlockRegistry.get_component_type_name(
+                    comp_type
+                )  # Get registered name
+                if type_name:
+                    try:
+                        serialized_component_data = serialize_item(component)
 
-        # Router
-        if self.handoff_router:
-            logger.debug(f"Serializing router for agent '{self.name}'")
-            router_type_name = FlockRegistry.get_component_type_name(
-                type(self.handoff_router)
-            )
-            if router_type_name:
-                router_dict = serialize_item(
-                    self.handoff_router.model_dump(
-                        mode="json", exclude_none=True
-                    )
-                )
-                router_dict["type"] = router_type_name
-                data["handoff_router"] = router_dict
-                logger.debug(
-                    f"Added router of type '{router_type_name}' to agent '{self.name}'"
-                )
-            else:
-                logger.warning(
-                    f"Could not get registered type name for router {type(self.handoff_router).__name__} in agent '{self.name}'. Skipping serialization."
-                )
+                        if not isinstance(serialized_component_data, dict):
+                            logger.error(
+                                f"Serialization of component {type_name} for field '{field_name}' did not result in a dictionary. Got: {type(serialized_component_data)}"
+                            )
+                            data[field_name] = {
+                                "type": type_name,
+                                "name": getattr(component, "name", "unknown"),
+                                "error": "serialization_failed_non_dict",
+                            }
+                        else:
+                            serialized_component_data["type"] = type_name
+                            data[field_name] = serialized_component_data
+                            logger.debug(
+                                f"Successfully serialized component for field '{field_name}' (type: {type_name})"
+                            )
 
-        # Modules
-        if self.modules:
-            logger.debug(
-                f"Serializing {len(self.modules)} modules for agent '{self.name}'"
-            )
-            serialized_modules = {}
-            for name, module_instance in self.modules.items():
-                module_type_name = FlockRegistry.get_component_type_name(
-                    type(module_instance)
-                )
-                if module_type_name:
-                    module_dict = serialize_item(
-                        module_instance.model_dump(
-                            mode="json", exclude_none=True
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to serialize component {type_name} for field '{field_name}': {e}",
+                            exc_info=True,
                         )
-                    )
-                    module_dict["type"] = module_type_name
-                    serialized_modules[name] = module_dict
-                    logger.debug(
-                        f"Added module '{name}' of type '{module_type_name}' to agent '{self.name}'"
-                    )
+                        data[field_name] = {
+                            "type": type_name,
+                            "name": getattr(component, "name", "unknown"),
+                            "error": "serialization_failed",
+                        }
                 else:
                     logger.warning(
-                        f"Could not get registered type name for module {type(module_instance).__name__} ('{name}') in agent '{self.name}'. Skipping."
+                        f"Cannot serialize unregistered component {comp_type.__name__} for field '{field_name}'"
                     )
-            if serialized_modules:
-                data["modules"] = serialized_modules
-                logger.debug(
-                    f"Added {len(serialized_modules)} modules to agent '{self.name}'"
-                )
+
+        add_serialized_component(self.evaluator, "evaluator")
+        add_serialized_component(self.handoff_router, "handoff_router")
+
+        for module in self.modules.values():
+            add_serialized_component(module, module.name)
 
         # --- Serialize Tools (Callables) ---
         if self.tools:

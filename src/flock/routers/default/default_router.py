@@ -72,5 +72,7 @@ class DefaultRouter(FlockRouter):
         if callable(handoff):
             handoff = handoff(context, result)
         if isinstance(handoff, str):
-            handoff = HandOffRequest(next_agent=handoff, hand_off_mode="match")
+            handoff = HandOffRequest(
+                next_agent=handoff, output_to_input_merge_strategy="match"
+            )
         return handoff
