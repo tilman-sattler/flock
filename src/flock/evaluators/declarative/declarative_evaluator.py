@@ -19,7 +19,7 @@ logger = get_logger("evaluators.declarative")
 class DeclarativeEvaluatorConfig(FlockEvaluatorConfig):
     """Configuration for the DeclarativeEvaluator."""
 
-    agent_type_override: str | None = None
+    override_evaluator_type: str | None = None
     model: str | None = "openai/gpt-4o"
     use_cache: bool = True
     temperature: float = 0.0
@@ -28,6 +28,11 @@ class DeclarativeEvaluatorConfig(FlockEvaluatorConfig):
         default=False,
         description="Enable streaming output from the underlying DSPy program.",
     )
+    include_thought_process: bool = Field(
+        default=False,
+        description="Include the thought process in the output.",
+    )
+    kwargs: dict[str, Any] = Field(default_factory=dict)
 
 
 class DeclarativeEvaluator(
@@ -39,6 +44,9 @@ class DeclarativeEvaluator(
         default_factory=DeclarativeEvaluatorConfig,
         description="Evaluator configuration",
     )
+
+    cost: float = 0.0
+    lm_history: list = Field(default_factory=list)
 
     async def evaluate(
         self, agent: FlockAgent, inputs: dict[str, Any], tools: list[Any]
@@ -68,8 +76,9 @@ class DeclarativeEvaluator(
             )
             agent_task = self._select_task(
                 _dspy_signature,
-                agent_type_override=self.config.agent_type_override,
+                override_evaluator_type=self.config.override_evaluator_type,
                 tools=tools,
+                kwargs=self.config.kwargs,
             )
         except Exception as setup_error:
             logger.error(
@@ -109,21 +118,46 @@ class DeclarativeEvaluator(
                 if delta_content:
                     console.print(delta_content, end="")
 
-                result_dict = self._process_result(chunk, inputs)
+                result_dict, cost, lm_history = self._process_result(
+                    chunk, inputs
+                )
+                self.cost = cost
+                self.lm_history = lm_history
 
             console.print("\n")
-            return result_dict
+            return self.filter_thought_process(
+                result_dict, self.config.include_thought_process
+            )
 
         else:  # Non-streaming path
             logger.info(f"Evaluating agent '{agent.name}' without streaming.")
             try:
                 # Ensure the call is awaited if the underlying task is async
                 result_obj = agent_task(**inputs)
-                result_dict = self._process_result(result_obj, inputs)
-                return result_dict
+                result_dict, cost, lm_history = self._process_result(
+                    result_obj, inputs
+                )
+                self.cost = cost
+                self.lm_history = lm_history
+                return self.filter_thought_process(
+                    result_dict, self.config.include_thought_process
+                )
             except Exception as e:
                 logger.error(
                     f"Error during non-streaming evaluation for agent '{agent.name}': {e}",
                     exc_info=True,
                 )
                 raise RuntimeError(f"Evaluation failed: {e}") from e
+
+    def filter_thought_process(
+        result_dict: dict[str, Any], include_thought_process: bool
+    ) -> dict[str, Any]:
+        """Filter out thought process from the result dictionary."""
+        if include_thought_process:
+            return result_dict
+        else:
+            return {
+                k: v
+                for k, v in result_dict.items()
+                if not (k.startswith("reasoning") or k.startswith("trajectory"))
+            }

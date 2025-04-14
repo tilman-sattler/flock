@@ -38,8 +38,7 @@ news/
 .chroma/
 hierarchical_memory/
 .repomix-output.txt
-output/
-!src/flock/modules/output/output_module.py
+
 .env.*
 .flock/
 

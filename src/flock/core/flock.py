@@ -150,8 +150,7 @@ class Flock(BaseModel, Serializable):
                     )
 
         # Initialize console if needed for banner
-        if self.show_flock_banner:  # Use instance attribute
-            init_console()
+        init_console(clear_screen=True, show_banner=self.show_flock_banner)
 
         # Set Temporal debug environment variable
         self._set_temporal_debug_flag()
@@ -225,7 +224,7 @@ class Flock(BaseModel, Serializable):
             raise ValueError("Agent must have a name.")
 
         if agent.name in self._agents:
-            logger.warning(f"Agent '{agent.name}' already exists. Overwriting.")
+            raise ValueError("Agent with this name already exists.")
         self._agents[agent.name] = agent
         FlockRegistry.register_agent(agent)  # Register globally
 

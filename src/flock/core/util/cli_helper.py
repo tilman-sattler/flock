@@ -43,7 +43,7 @@ def display_hummingbird():
 """)
 
 
-def init_console(clear_screen: bool = True):
+def init_console(clear_screen: bool = True, show_banner: bool = True):
     """Display the Flock banner."""
     banner_text = Text(
         f"""
@@ -60,7 +60,9 @@ def init_console(clear_screen: bool = True):
     )
     if clear_screen:
         console.clear()
-    console.print(banner_text)
+
+    if show_banner:
+        console.print(banner_text)
     console.print(
         f"[italic]'Magpie'[/] milestone - [bold]white duck GmbH[/] - [cyan]https://whiteduck.de[/]\n"
     )
