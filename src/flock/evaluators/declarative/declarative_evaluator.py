@@ -150,7 +150,7 @@ class DeclarativeEvaluator(
                 raise RuntimeError(f"Evaluation failed: {e}") from e
 
     def filter_thought_process(
-        result_dict: dict[str, Any], include_thought_process: bool
+        self, result_dict: dict[str, Any], include_thought_process: bool
     ) -> dict[str, Any]:
         """Filter out thought process from the result dictionary."""
         if include_thought_process:
