@@ -183,11 +183,14 @@ async def run_agent(context: FlockContext) -> dict:
                             agent.output = field + ", " + agent.output
 
                     if handoff_data.add_description:
-                        agent.description = (
-                            agent.description
-                            + "\n"
-                            + handoff_data.add_description
-                        )
+                        if agent.description:
+                            agent.description = (
+                                agent.description
+                                + "\n"
+                                + handoff_data.add_description
+                            )
+                        else:
+                            agent.description = handoff_data.add_description
 
                     agent.resolve_callables(context=context)
                     if not agent:

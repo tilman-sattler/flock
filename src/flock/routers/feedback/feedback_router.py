@@ -61,8 +61,10 @@ class FeedbackRetryRouter(FlockRouter):
             logger.warning(
                 f"Assertion feedback detected for agent '{current_agent.name}'. Attempting retry."
             )
+
             retry_key = f"{self.config.retry_count_context_key_prefix}{current_agent.name}"
             retry_count = context.get_variable(retry_key, 0)
+            logger.warning(f"Feedback: {feedback} - Retry Count {retry_count}")
 
             if retry_count < self.config.max_retries:
                 logger.info(
@@ -76,7 +78,7 @@ class FeedbackRetryRouter(FlockRouter):
                 # Requires the agent's signature to potentially accept a 'feedback' input field.
                 return HandOffRequest(
                     next_agent=current_agent.name,
-                    output_to_input_merge_strategy="add",  # Add feedback to existing context/previous results
+                    output_to_input_merge_strategy="match",  # Add feedback to existing context/previous results
                     add_input_fields=[
                         f"{self.config.feedback_context_key} | Feedback for prev result",
                         f"{current_agent.name}_prev_result | Previous Result",

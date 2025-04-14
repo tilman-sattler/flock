@@ -1,14 +1,11 @@
 """Base router class for the Flock framework."""
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 from flock.core.context.context import FlockContext
-
-if TYPE_CHECKING:
-    from flock.core.flock_agent import FlockAgent
 
 
 class HandOffRequest(BaseModel):
@@ -31,7 +28,7 @@ class HandOffRequest(BaseModel):
     add_description: str | None = Field(
         default=None, description="Add this description to the next agent"
     )
-    override_next_agent: "FlockAgent | None" = Field(
+    override_next_agent: Any | None = Field(
         default=None,
         description="Override the next agent to hand off to",
     )
