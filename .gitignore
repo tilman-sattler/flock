@@ -38,6 +38,7 @@ news/
 .chroma/
 hierarchical_memory/
 .repomix-output.txt
+.sesskey
 
 .env.*
 .flock/
