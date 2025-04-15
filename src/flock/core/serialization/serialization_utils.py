@@ -8,6 +8,7 @@ import sys
 import types
 import typing
 from collections.abc import Mapping, Sequence
+from enum import Enum
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -261,6 +262,8 @@ def serialize_item(item: Any) -> Any:
             f"Could not serialize type object {item}, storing as string."
         )
         return str(item)
+    elif isinstance(item, Enum):
+        return item.value
     else:
         # Return basic types as is
         return item

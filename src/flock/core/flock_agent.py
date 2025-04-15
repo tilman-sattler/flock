@@ -428,6 +428,7 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
             exclude_none=True,  # Exclude None values for cleaner output
         )
         logger.debug(f"Base agent data for '{self.name}': {list(data.keys())}")
+        serialized_modules = {}
 
         def add_serialized_component(component: Any, field_name: str):
             if component:
@@ -443,14 +444,16 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
                             logger.error(
                                 f"Serialization of component {type_name} for field '{field_name}' did not result in a dictionary. Got: {type(serialized_component_data)}"
                             )
-                            data[field_name] = {
+                            serialized_modules[field_name] = {
                                 "type": type_name,
                                 "name": getattr(component, "name", "unknown"),
                                 "error": "serialization_failed_non_dict",
                             }
                         else:
                             serialized_component_data["type"] = type_name
-                            data[field_name] = serialized_component_data
+                            serialized_modules[field_name] = (
+                                serialized_component_data
+                            )
                             logger.debug(
                                 f"Successfully serialized component for field '{field_name}' (type: {type_name})"
                             )
@@ -460,7 +463,7 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
                             f"Failed to serialize component {type_name} for field '{field_name}': {e}",
                             exc_info=True,
                         )
-                        data[field_name] = {
+                        serialized_modules[field_name] = {
                             "type": type_name,
                             "name": getattr(component, "name", "unknown"),
                             "error": "serialization_failed",
@@ -471,10 +474,25 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
                     )
 
         add_serialized_component(self.evaluator, "evaluator")
-        add_serialized_component(self.handoff_router, "handoff_router")
+        if serialized_modules:
+            data["evaluator"] = serialized_modules["evaluator"]
+            logger.debug(f"Added evaluator to agent '{self.name}'")
 
+        serialized_modules = {}
+        add_serialized_component(self.handoff_router, "handoff_router")
+        if serialized_modules:
+            data["handoff_router"] = serialized_modules["handoff_router"]
+            logger.debug(f"Added handoff_router to agent '{self.name}'")
+
+        serialized_modules = {}
         for module in self.modules.values():
             add_serialized_component(module, module.name)
+
+        if serialized_modules:
+            data["modules"] = serialized_modules
+            logger.debug(
+                f"Added {len(serialized_modules)} modules to agent '{self.name}'"
+            )
 
         # --- Serialize Tools (Callables) ---
         if self.tools:
