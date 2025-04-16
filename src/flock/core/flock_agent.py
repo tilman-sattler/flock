@@ -2,7 +2,6 @@
 """FlockAgent is the core, declarative base class for all agents in the Flock framework."""
 
 import asyncio
-import inspect
 import json
 import os
 from abc import ABC
@@ -488,10 +487,7 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
 
         # --- 3. Instantiate the Component (Same as before) ---
         try:
-            init_args = {"config": config_instance}
-            sig = inspect.signature(ComponentClass.__init__)
-            if "name" in sig.parameters:
-                init_args["name"] = instance_name
+            init_args = {"config": config_instance, "name": instance_name}
 
             component_instance = ComponentClass(**init_args)
         except Exception as e:
