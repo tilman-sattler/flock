@@ -23,6 +23,55 @@ from typing import (  # Add TYPE_CHECKING
 
 from pydantic import BaseModel
 
+from flock.core.flock_evaluator import FlockEvaluatorConfig
+from flock.core.flock_router import FlockRouterConfig
+from flock.evaluators.declarative.declarative_evaluator import (
+    DeclarativeEvaluator,
+    DeclarativeEvaluatorConfig,
+)
+from flock.evaluators.memory.memory_evaluator import (
+    MemoryEvaluator,
+    MemoryEvaluatorConfig,
+)
+from flock.evaluators.test.test_case_evaluator import (
+    TestCaseEvaluator,
+    TestCaseEvaluatorConfig,
+)
+from flock.evaluators.zep.zep_evaluator import ZepEvaluator, ZepEvaluatorConfig
+from flock.modules.assertion.assertion_module import (
+    AssertionCheckerModule,
+    AssertionModuleConfig,
+)
+from flock.modules.callback.callback_module import (
+    CallbackModule,
+    CallbackModuleConfig,
+)
+from flock.modules.memory.memory_module import MemoryModule, MemoryModuleConfig
+from flock.modules.output.output_module import OutputModule, OutputModuleConfig
+from flock.modules.performance.metrics_module import (
+    MetricsModule,
+    MetricsModuleConfig,
+)
+from flock.modules.zep.zep_module import ZepModule, ZepModuleConfig
+from flock.routers.agent.agent_router import AgentRouter, AgentRouterConfig
+from flock.routers.conditional.conditional_router import (
+    ConditionalRouter,
+    ConditionalRouterConfig,
+)
+from flock.routers.default.default_router import (
+    DefaultRouter,
+    DefaultRouterConfig,
+)
+from flock.routers.feedback.feedback_router import (
+    FeedbackRetryRouter,
+    FeedbackRetryRouterConfig,
+)
+from flock.routers.list_generator.list_generator_router import (
+    IterativeListGeneratorRouter,
+    IterativeListGeneratorRouterConfig,
+)
+from flock.routers.llm.llm_router import LLMRouter, LLMRouterConfig
+
 if TYPE_CHECKING:
     from flock.core.flock_agent import (
         FlockAgent,  # Import only for type checking
@@ -41,12 +90,35 @@ else:
 
 # Fallback if core types aren't available during setup
 
+from flock.core.flock_module import FlockModuleConfig
 from flock.core.logging.logging import get_logger
 
 logger = get_logger("registry")
 T = TypeVar("T")
 ClassType = TypeVar("ClassType", bound=type)
 FuncType = TypeVar("FuncType", bound=Callable)
+ConfigType = TypeVar("ConfigType", bound=BaseModel)
+_COMPONENT_CONFIG_MAP: dict[type[BaseModel], type[any]] = {
+    # Routers
+    DefaultRouterConfig: DefaultRouter,
+    LLMRouterConfig: LLMRouter,
+    AgentRouterConfig: AgentRouter,
+    ConditionalRouterConfig: ConditionalRouter,
+    FeedbackRetryRouterConfig: FeedbackRetryRouter,
+    IterativeListGeneratorRouterConfig: IterativeListGeneratorRouter,
+    # Evaluators
+    DeclarativeEvaluatorConfig: DeclarativeEvaluator,
+    MemoryEvaluatorConfig: MemoryEvaluator,
+    ZepEvaluatorConfig: ZepEvaluator,
+    TestCaseEvaluatorConfig: TestCaseEvaluator,
+    # Modules
+    OutputModuleConfig: OutputModule,
+    MemoryModuleConfig: MemoryModule,
+    MetricsModuleConfig: MetricsModule,
+    AssertionModuleConfig: AssertionCheckerModule,
+    CallbackModuleConfig: CallbackModule,
+    ZepModuleConfig: ZepModule,
+}
 
 
 class FlockRegistry:
@@ -104,6 +176,40 @@ class FlockRegistry:
                 self.register_type(t)
             except Exception as e:
                 logger.error(f"Failed to auto-register core type {t}: {e}")
+
+    @staticmethod
+    def register_config_component_pair(
+        config_cls: type[ConfigType], component_cls: type[ClassType]
+    ):
+        """Explicitly registers the mapping between a config and component class."""
+        if not issubclass(
+            config_cls,
+            FlockModuleConfig | FlockRouterConfig | FlockEvaluatorConfig,
+        ):
+            logger.warning(
+                f"Config class {config_cls.__name__} does not inherit from a standard Flock config base."
+            )
+        # Add more checks if needed (e.g., component_cls inherits from Module/Router/Evaluator)
+
+        if (
+            config_cls in _COMPONENT_CONFIG_MAP
+            and _COMPONENT_CONFIG_MAP[config_cls] != component_cls
+        ):
+            logger.warning(
+                f"Config class {config_cls.__name__} already mapped to {_COMPONENT_CONFIG_MAP[config_cls].__name__}. Overwriting with {component_cls.__name__}."
+            )
+
+        _COMPONENT_CONFIG_MAP[config_cls] = component_cls
+        logger.debug(
+            f"Registered config mapping: {config_cls.__name__} -> {component_cls.__name__}"
+        )
+
+    @staticmethod
+    def get_component_class_for_config(
+        config_cls: type[ConfigType],
+    ) -> type[ClassType] | None:
+        """Looks up the Component Class associated with a Config Class."""
+        return _COMPONENT_CONFIG_MAP.get(config_cls)
 
     # --- Path String Generation ---
     @staticmethod
@@ -439,36 +545,41 @@ def get_registry() -> FlockRegistry:
 
 # Type hinting for decorators to preserve signature
 @overload
-def flock_component(cls: ClassType) -> ClassType: ...
+def flock_component(cls: ClassType) -> ClassType: ...  # Basic registration
 @overload
 def flock_component(
-    *, name: str | None = None
-) -> Callable[[ClassType], ClassType]: ...
+    *, name: str | None = None, config_class: type[ConfigType] | None = None
+) -> Callable[[ClassType], ClassType]: ...  # With options
 
 
 def flock_component(
-    cls: ClassType | None = None, *, name: str | None = None
+    cls: ClassType | None = None,
+    *,
+    name: str | None = None,
+    config_class: type[ConfigType] | None = None,
 ) -> Any:
-    """Decorator to register a Flock Component class (Module, Evaluator, Router).
-
-    Usage:
-        @flock_component
-        class MyModule(FlockModule): ...
-
-        @flock_component(name="CustomRouterAlias")
-        class MyRouter(FlockRouter): ...
-    """
+    """Decorator to register a Flock Component class and optionally link its config class."""
     registry = get_registry()
 
     def decorator(inner_cls: ClassType) -> ClassType:
         if not inspect.isclass(inner_cls):
             raise TypeError("@flock_component can only decorate classes.")
+
         component_name = name or inner_cls.__name__
-        registry.register_component(inner_cls, name=component_name)
+        registry.register_component(
+            inner_cls, name=component_name
+        )  # Register component by name
+
+        # If config_class is provided, register the mapping
+        if config_class:
+            FlockRegistry.register_config_component_pair(
+                config_class, inner_cls
+            )
+
         return inner_cls
 
     if cls is None:
-        # Called as @flock_component(name="...")
+        # Called as @flock_component(name="...", config_class=...)
         return decorator
     else:
         # Called as @flock_component

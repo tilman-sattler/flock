@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from typing import Any
 
-from flock.core.flock_agent import FlockAgent
+from flock.core.flock_agent import FlockAgent, SignatureType
 from flock.core.logging.formatters.themes import OutputTheme
 from flock.evaluators.declarative.declarative_evaluator import (
     DeclarativeEvaluator,
@@ -24,8 +24,8 @@ class FlockFactory:
         name: str,
         description: str | Callable[..., str] | None = None,
         model: str | Callable[..., str] | None = None,
-        input: str | Callable[..., str] | None = None,
-        output: str | Callable[..., str] | None = None,
+        input: SignatureType = None,
+        output: SignatureType = None,
         tools: list[Callable[..., Any] | Any] | None = None,
         use_cache: bool = True,
         enable_rich_tables: bool = False,

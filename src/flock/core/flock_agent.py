@@ -2,6 +2,7 @@
 """FlockAgent is the core, declarative base class for all agents in the Flock framework."""
 
 import asyncio
+import inspect
 import json
 import os
 from abc import ABC
@@ -23,9 +24,9 @@ from rich.console import Console
 
 # Core Flock components (ensure these are importable)
 from flock.core.context.context import FlockContext
-from flock.core.flock_evaluator import FlockEvaluator
-from flock.core.flock_module import FlockModule
-from flock.core.flock_router import FlockRouter
+from flock.core.flock_evaluator import FlockEvaluator, FlockEvaluatorConfig
+from flock.core.flock_module import FlockModule, FlockModuleConfig
+from flock.core.flock_router import FlockRouter, FlockRouterConfig
 from flock.core.logging.logging import get_logger
 
 # Mixins and Serialization components
@@ -45,6 +46,15 @@ tracer = trace.get_tracer(__name__)
 T = TypeVar("T", bound="FlockAgent")
 
 
+SignatureType = (
+    str
+    | Callable[..., str]
+    | type[BaseModel]
+    | Callable[..., type[BaseModel]]
+    | None
+)
+
+
 # Make FlockAgent inherit from Serializable
 class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
     """Core, declarative base class for Flock agents, enabling serialization,
@@ -61,14 +71,14 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
         "",
         description="A human-readable description or a callable returning one.",
     )
-    input: str | Callable[..., str] | None = Field(
+    input: SignatureType = Field(
         None,
         description=(
             "Signature for input keys. Supports type hints (:) and descriptions (|). "
             "E.g., 'query: str | Search query, context: dict | Conversation context'. Can be a callable."
         ),
     )
-    output: str | Callable[..., str] | None = Field(
+    output: SignatureType = Field(
         None,
         description=(
             "Signature for output keys. Supports type hints (:) and descriptions (|). "
@@ -110,6 +120,43 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
         exclude=True,  # Exclude context from model_dump and serialization
         description="Runtime context associated with the flock execution.",
     )
+
+    def __init__(
+        self,
+        name: str,
+        model: str | None = None,
+        description: str | Callable[..., str] | None = "",
+        input: SignatureType = None,
+        output: SignatureType = None,
+        tools: list[Callable[..., Any]] | None = None,
+        evaluator: "FlockEvaluator" | None = None,
+        handoff_router: "FlockRouter" | None = None,
+        modules: dict[str, "FlockModule"] | None = None,  # Use dict for modules
+        write_to_file: bool = False,
+        wait_for_input: bool = False,
+        **kwargs,
+    ):
+        super().__init__(
+            name=name,
+            model=model,
+            description=description,
+            input=input,  # Store the raw input spec
+            output=output,  # Store the raw output spec
+            tools=tools,
+            write_to_file=write_to_file,
+            wait_for_input=wait_for_input,
+            evaluator=evaluator,
+            handoff_router=handoff_router,
+            modules=modules
+            if modules is not None
+            else {},  # Ensure modules is a dict
+            **kwargs,
+        )
+
+        if isinstance(self.input, type) and issubclass(self.input, BaseModel):
+            self._input_model = self.input
+        if isinstance(self.output, type) and issubclass(self.output, BaseModel):
+            self._output_model = self.output
 
     # --- Existing Methods (add_module, remove_module, etc.) ---
     # (Keep these methods as they were, adding type hints where useful)
@@ -358,6 +405,117 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
                 )
                 span.record_exception(temporal_error)
                 raise
+
+    def add_component(
+        self,
+        config_instance: FlockModuleConfig
+        | FlockRouterConfig
+        | FlockEvaluatorConfig,
+        component_name: str | None = None,
+    ) -> "FlockAgent":
+        """Adds or replaces a component (Evaluator, Router, Module) based on its configuration object.
+
+        Args:
+            config_instance: An instance of a config class inheriting from
+                             FlockModuleConfig, FlockRouterConfig, or FlockEvaluatorConfig.
+            component_name: Explicit name for the component (required for Modules if not in config).
+
+        Returns:
+            self for potential chaining.
+        """
+        from flock.core.flock_registry import get_registry
+
+        config_type = type(config_instance)
+        registry = get_registry()  # Get registry instance
+        logger.debug(
+            f"Attempting to add component via config: {config_type.__name__}"
+        )
+
+        # --- 1. Find Component Class using Registry Map ---
+        ComponentClass = registry.get_component_class_for_config(config_type)
+
+        if not ComponentClass:
+            logger.error(
+                f"No component class registered for config type {config_type.__name__}. Use @flock_component(config_class=...) on the component."
+            )
+            raise TypeError(
+                f"Cannot find component class for config {config_type.__name__}"
+            )
+
+        component_class_name = ComponentClass.__name__
+        logger.debug(
+            f"Found component class '{component_class_name}' mapped to config '{config_type.__name__}'"
+        )
+
+        # --- 2. Determine Assignment Target and Name (Same as before) ---
+        instance_name = component_name
+        attribute_name: str = ""
+
+        if issubclass(ComponentClass, FlockEvaluator):
+            attribute_name = "evaluator"
+            if not instance_name:
+                instance_name = getattr(
+                    config_instance, "name", component_class_name.lower()
+                )
+
+        elif issubclass(ComponentClass, FlockRouter):
+            attribute_name = "handoff_router"
+            if not instance_name:
+                instance_name = getattr(
+                    config_instance, "name", component_class_name.lower()
+                )
+
+        elif issubclass(ComponentClass, FlockModule):
+            attribute_name = "modules"
+            if not instance_name:
+                instance_name = getattr(
+                    config_instance, "name", component_class_name.lower()
+                )
+            if not instance_name:
+                raise ValueError(
+                    "Module name must be provided either in config or as component_name argument."
+                )
+            # Ensure config has name if module expects it
+            if hasattr(config_instance, "name") and not getattr(
+                config_instance, "name", None
+            ):
+                setattr(config_instance, "name", instance_name)
+
+        else:  # Should be caught by registry map logic ideally
+            raise TypeError(
+                f"Class '{component_class_name}' mapped from config is not a valid Flock component."
+            )
+
+        # --- 3. Instantiate the Component (Same as before) ---
+        try:
+            init_args = {"config": config_instance}
+            sig = inspect.signature(ComponentClass.__init__)
+            if "name" in sig.parameters:
+                init_args["name"] = instance_name
+
+            component_instance = ComponentClass(**init_args)
+        except Exception as e:
+            logger.error(
+                f"Failed to instantiate {ComponentClass.__name__} with config {config_type.__name__}: {e}",
+                exc_info=True,
+            )
+            raise RuntimeError(f"Component instantiation failed: {e}") from e
+
+        # --- 4. Assign to the Agent (Same as before) ---
+        if attribute_name == "modules":
+            if not isinstance(self.modules, dict):
+                self.modules = {}
+            self.modules[instance_name] = component_instance
+            logger.info(
+                f"Added/Updated module '{instance_name}' (type: {ComponentClass.__name__}) to agent '{self.name}'"
+            )
+        else:
+            setattr(self, attribute_name, component_instance)
+            logger.info(
+                f"Set {attribute_name} to {ComponentClass.__name__} (instance name: '{instance_name}') for agent '{self.name}'"
+            )
+
+        return self
 
     # resolve_callables remains useful for dynamic definitions
     def resolve_callables(self, context: FlockContext | None = None) -> None:
