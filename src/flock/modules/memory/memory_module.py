@@ -12,6 +12,7 @@ from flock.core.context.context import FlockContext
 #     from flock.core import FlockAgent
 from flock.core.flock_agent import FlockAgent
 from flock.core.flock_module import FlockModule, FlockModuleConfig
+from flock.core.flock_registry import flock_component
 from flock.core.logging.logging import get_logger
 from flock.modules.memory.memory_parser import MemoryMappingParser
 from flock.modules.memory.memory_storage import FlockMemoryStore, MemoryEntry
@@ -59,6 +60,7 @@ class MemoryModuleConfig(FlockModuleConfig):
     )
 
 
+@flock_component(config_class=MemoryModuleConfig)
 class MemoryModule(FlockModule):
     """Module that adds memory capabilities to a Flock agent."""
 

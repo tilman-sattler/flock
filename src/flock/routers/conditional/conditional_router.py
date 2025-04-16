@@ -146,7 +146,7 @@ class ConditionalRouterConfig(FlockRouterConfig):
         return self
 
 
-@flock_component
+@flock_component(config_class=ConditionalRouterConfig)
 class ConditionalRouter(FlockRouter):
     """Routes workflow based on evaluating a condition against a value in the FlockContext.
     Supports various built-in checks (string, number, list, type, bool, existence)

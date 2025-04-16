@@ -35,7 +35,7 @@ class FeedbackRetryRouterConfig(FlockRouterConfig):
     )
 
 
-@flock_component
+@flock_component(config_class=FeedbackRetryRouterConfig)
 class FeedbackRetryRouter(FlockRouter):
     """Routes based on assertion feedback in the context.
 

@@ -7,6 +7,7 @@ from rich.console import Console
 
 from flock.core.flock_agent import FlockAgent
 from flock.core.flock_evaluator import FlockEvaluator, FlockEvaluatorConfig
+from flock.core.flock_registry import flock_component
 from flock.core.logging.logging import get_logger
 from flock.core.mixin.dspy_integration import DSPyIntegrationMixin
 from flock.core.mixin.prompt_parser import PromptParserMixin
@@ -35,6 +36,7 @@ class DeclarativeEvaluatorConfig(FlockEvaluatorConfig):
     kwargs: dict[str, Any] = Field(default_factory=dict)
 
 
+@flock_component(config_class=DeclarativeEvaluatorConfig)
 class DeclarativeEvaluator(
     FlockEvaluator, DSPyIntegrationMixin, PromptParserMixin
 ):

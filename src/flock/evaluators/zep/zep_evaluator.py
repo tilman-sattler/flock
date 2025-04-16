@@ -4,6 +4,7 @@ from pydantic import Field
 
 from flock.core.flock_agent import FlockAgent
 from flock.core.flock_evaluator import FlockEvaluator, FlockEvaluatorConfig
+from flock.core.flock_registry import flock_component
 from flock.core.mixin.dspy_integration import DSPyIntegrationMixin
 from flock.core.mixin.prompt_parser import PromptParserMixin
 from flock.modules.zep.zep_module import ZepModule, ZepModuleConfig
@@ -17,6 +18,7 @@ class ZepEvaluatorConfig(FlockEvaluatorConfig):
     )
 
 
+@flock_component(config_class=ZepEvaluatorConfig)
 class ZepEvaluator(FlockEvaluator, DSPyIntegrationMixin, PromptParserMixin):
     """Evaluator that uses DSPy for generation."""
 

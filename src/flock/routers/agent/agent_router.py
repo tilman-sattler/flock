@@ -4,6 +4,7 @@ from typing import Any
 
 from flock.core.context.context import FlockContext
 from flock.core.flock_agent import FlockAgent
+from flock.core.flock_registry import flock_component
 from flock.core.flock_router import (
     FlockRouter,
     FlockRouterConfig,
@@ -34,6 +35,7 @@ class AgentRouterConfig(FlockRouterConfig):
     confidence_threshold: float = 0.5  # No additional parameters needed for now
 
 
+@flock_component(config_class=AgentRouterConfig)
 class AgentRouter(FlockRouter):
     """Router that uses a FlockAgent to determine the next agent in a workflow.
 
