@@ -23,64 +23,91 @@ from typing import (  # Add TYPE_CHECKING
 
 from pydantic import BaseModel
 
-from flock.core.flock_evaluator import FlockEvaluatorConfig
-from flock.core.flock_router import FlockRouterConfig
-from flock.evaluators.declarative.declarative_evaluator import (
-    DeclarativeEvaluator,
-    DeclarativeEvaluatorConfig,
-)
-from flock.evaluators.memory.memory_evaluator import (
-    MemoryEvaluator,
-    MemoryEvaluatorConfig,
-)
-from flock.evaluators.test.test_case_evaluator import (
-    TestCaseEvaluator,
-    TestCaseEvaluatorConfig,
-)
-from flock.evaluators.zep.zep_evaluator import ZepEvaluator, ZepEvaluatorConfig
-from flock.modules.assertion.assertion_module import (
-    AssertionCheckerModule,
-    AssertionModuleConfig,
-)
-from flock.modules.callback.callback_module import (
-    CallbackModule,
-    CallbackModuleConfig,
-)
-from flock.modules.memory.memory_module import MemoryModule, MemoryModuleConfig
-from flock.modules.output.output_module import OutputModule, OutputModuleConfig
-from flock.modules.performance.metrics_module import (
-    MetricsModule,
-    MetricsModuleConfig,
-)
-from flock.modules.zep.zep_module import ZepModule, ZepModuleConfig
-from flock.routers.agent.agent_router import AgentRouter, AgentRouterConfig
-from flock.routers.conditional.conditional_router import (
-    ConditionalRouter,
-    ConditionalRouterConfig,
-)
-from flock.routers.default.default_router import (
-    DefaultRouter,
-    DefaultRouterConfig,
-)
-from flock.routers.feedback.feedback_router import (
-    FeedbackRetryRouter,
-    FeedbackRetryRouterConfig,
-)
-from flock.routers.list_generator.list_generator_router import (
-    IterativeListGeneratorRouter,
-    IterativeListGeneratorRouterConfig,
-)
-from flock.routers.llm.llm_router import LLMRouter, LLMRouterConfig
-
 if TYPE_CHECKING:
     from flock.core.flock_agent import (
         FlockAgent,  # Import only for type checking
     )
-    from flock.core.flock_evaluator import FlockEvaluator
+    from flock.core.flock_evaluator import FlockEvaluator, FlockEvaluatorConfig
     from flock.core.flock_module import FlockModule
-    from flock.core.flock_router import FlockRouter
+    from flock.core.flock_router import FlockRouter, FlockRouterConfig
+    from flock.evaluators.declarative.declarative_evaluator import (
+        DeclarativeEvaluator,
+        DeclarativeEvaluatorConfig,
+    )
+    from flock.evaluators.memory.memory_evaluator import (
+        MemoryEvaluator,
+        MemoryEvaluatorConfig,
+    )
+    from flock.evaluators.test.test_case_evaluator import (
+        TestCaseEvaluator,
+        TestCaseEvaluatorConfig,
+    )
+    from flock.evaluators.zep.zep_evaluator import (
+        ZepEvaluator,
+        ZepEvaluatorConfig,
+    )
+    from flock.modules.assertion.assertion_module import (
+        AssertionCheckerModule,
+        AssertionModuleConfig,
+    )
+    from flock.modules.callback.callback_module import (
+        CallbackModule,
+        CallbackModuleConfig,
+    )
+    from flock.modules.memory.memory_module import (
+        MemoryModule,
+        MemoryModuleConfig,
+    )
+    from flock.modules.output.output_module import (
+        OutputModule,
+        OutputModuleConfig,
+    )
+    from flock.modules.performance.metrics_module import (
+        MetricsModule,
+        MetricsModuleConfig,
+    )
+    from flock.modules.zep.zep_module import ZepModule, ZepModuleConfig
+    from flock.routers.agent.agent_router import AgentRouter, AgentRouterConfig
+    from flock.routers.conditional.conditional_router import (
+        ConditionalRouter,
+        ConditionalRouterConfig,
+    )
+    from flock.routers.default.default_router import (
+        DefaultRouter,
+        DefaultRouterConfig,
+    )
+    from flock.routers.feedback.feedback_router import (
+        FeedbackRetryRouter,
+        FeedbackRetryRouterConfig,
+    )
+    from flock.routers.list_generator.list_generator_router import (
+        IterativeListGeneratorRouter,
+        IterativeListGeneratorRouterConfig,
+    )
+    from flock.routers.llm.llm_router import LLMRouter, LLMRouterConfig
 
     COMPONENT_BASE_TYPES = (FlockModule, FlockEvaluator, FlockRouter)
+    _COMPONENT_CONFIG_MAP: dict[type[BaseModel], type[any]] = {
+        # Routers
+        DefaultRouterConfig: DefaultRouter,
+        LLMRouterConfig: LLMRouter,
+        AgentRouterConfig: AgentRouter,
+        ConditionalRouterConfig: ConditionalRouter,
+        FeedbackRetryRouterConfig: FeedbackRetryRouter,
+        IterativeListGeneratorRouterConfig: IterativeListGeneratorRouter,
+        # Evaluators
+        DeclarativeEvaluatorConfig: DeclarativeEvaluator,
+        MemoryEvaluatorConfig: MemoryEvaluator,
+        ZepEvaluatorConfig: ZepEvaluator,
+        TestCaseEvaluatorConfig: TestCaseEvaluator,
+        # Modules
+        OutputModuleConfig: OutputModule,
+        MemoryModuleConfig: MemoryModule,
+        MetricsModuleConfig: MetricsModule,
+        AssertionModuleConfig: AssertionCheckerModule,
+        CallbackModuleConfig: CallbackModule,
+        ZepModuleConfig: ZepModule,
+    }
     IS_COMPONENT_CHECK_ENABLED = True
 else:
     # Define dummy types or skip check if not type checking
@@ -98,27 +125,6 @@ T = TypeVar("T")
 ClassType = TypeVar("ClassType", bound=type)
 FuncType = TypeVar("FuncType", bound=Callable)
 ConfigType = TypeVar("ConfigType", bound=BaseModel)
-_COMPONENT_CONFIG_MAP: dict[type[BaseModel], type[any]] = {
-    # Routers
-    DefaultRouterConfig: DefaultRouter,
-    LLMRouterConfig: LLMRouter,
-    AgentRouterConfig: AgentRouter,
-    ConditionalRouterConfig: ConditionalRouter,
-    FeedbackRetryRouterConfig: FeedbackRetryRouter,
-    IterativeListGeneratorRouterConfig: IterativeListGeneratorRouter,
-    # Evaluators
-    DeclarativeEvaluatorConfig: DeclarativeEvaluator,
-    MemoryEvaluatorConfig: MemoryEvaluator,
-    ZepEvaluatorConfig: ZepEvaluator,
-    TestCaseEvaluatorConfig: TestCaseEvaluator,
-    # Modules
-    OutputModuleConfig: OutputModule,
-    MemoryModuleConfig: MemoryModule,
-    MetricsModuleConfig: MetricsModule,
-    AssertionModuleConfig: AssertionCheckerModule,
-    CallbackModuleConfig: CallbackModule,
-    ZepModuleConfig: ZepModule,
-}
 
 
 class FlockRegistry:

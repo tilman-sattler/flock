@@ -129,8 +129,8 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
         input: SignatureType = None,
         output: SignatureType = None,
         tools: list[Callable[..., Any]] | None = None,
-        evaluator: "FlockEvaluator" | None = None,
-        handoff_router: "FlockRouter" | None = None,
+        evaluator: "FlockEvaluator | None" = None,
+        handoff_router: "FlockRouter | None" = None,
         modules: dict[str, "FlockModule"] | None = None,  # Use dict for modules
         write_to_file: bool = False,
         wait_for_input: bool = False,
