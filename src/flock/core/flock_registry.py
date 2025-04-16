@@ -5,6 +5,7 @@ within the Flock framework to support dynamic lookup and serialization.
 
 from __future__ import annotations  # Add this at the very top
 
+import builtins
 import importlib
 import inspect
 import sys
@@ -172,57 +173,88 @@ class FlockRegistry:
         )
         return None
 
-    def get_callable(self, path_str: str) -> Callable:
-        """Retrieves a callable by its path string, attempting dynamic import if not found."""
-        if path_str in self._callables:
-            logger.debug(f"Found callable '{path_str}' in registry")
-            return self._callables[path_str]
+    def get_callable(self, name_or_path: str) -> Callable:
+        """Retrieves a callable by its registered name or full path string.
+        Attempts dynamic import if not found directly. Prioritizes exact match,
+        then searches for matches ending with '.{name}'.
+        """
+        # 1. Try exact match first (covers full paths and simple names if registered that way)
+        if name_or_path in self._callables:
+            logger.debug(
+                f"Found callable '{name_or_path}' directly in registry."
+            )
+            return self._callables[name_or_path]
 
-        logger.debug(
-            f"Callable '{path_str}' not in registry, attempting dynamic import."
-        )
-        try:
-            if "." not in path_str:  # Built-ins
-                logger.debug(f"Trying to import built-in callable '{path_str}'")
-                builtins_module = importlib.import_module("builtins")
-                if hasattr(builtins_module, path_str):
-                    func = getattr(builtins_module, path_str)
-                    if callable(func):
-                        self.register_callable(func, path_str)  # Cache it
-                        logger.info(
-                            f"Successfully imported built-in callable '{path_str}'"
-                        )
-                        return func
-                logger.error(f"Built-in callable '{path_str}' not found.")
-                raise KeyError(f"Built-in callable '{path_str}' not found.")
+        # 2. If not found, and it looks like a simple name, search registered paths
+        if "." not in name_or_path:
+            matches = []
+            for path_str, func in self._callables.items():
+                # Check if path ends with ".{simple_name}" or exactly matches simple_name
+                if path_str == name_or_path or path_str.endswith(
+                    f".{name_or_path}"
+                ):
+                    matches.append(func)
 
-            logger.debug(f"Trying to import module callable '{path_str}'")
-            module_name, func_name = path_str.rsplit(".", 1)
-            module = importlib.import_module(module_name)
-            func = getattr(module, func_name)
+            if len(matches) == 1:
+                logger.debug(
+                    f"Found unique callable for simple name '{name_or_path}' via path '{self.get_callable_path_string(matches[0])}'."
+                )
+                return matches[0]
+            elif len(matches) > 1:
+                # Ambiguous simple name - require full path
+                found_paths = [
+                    self.get_callable_path_string(f) for f in matches
+                ]
+                logger.error(
+                    f"Ambiguous callable name '{name_or_path}'. Found matches: {found_paths}. Use full path string for lookup."
+                )
+                raise KeyError(
+                    f"Ambiguous callable name '{name_or_path}'. Use full path string."
+                )
+            # else: Not found by simple name search in registry, proceed to dynamic import
+
+        # 3. Attempt dynamic import if it looks like a full path
+        if "." in name_or_path:
+            logger.debug(
+                f"Callable '{name_or_path}' not in registry cache, attempting dynamic import."
+            )
+            try:
+                module_name, func_name = name_or_path.rsplit(".", 1)
+                module = importlib.import_module(module_name)
+                func = getattr(module, func_name)
+                if callable(func):
+                    self.register_callable(
+                        func, name_or_path
+                    )  # Cache dynamically imported
+                    logger.info(
+                        f"Successfully imported and registered module callable '{name_or_path}'"
+                    )
+                    return func
+                else:
+                    raise TypeError(
+                        f"Dynamically imported object '{name_or_path}' is not callable."
+                    )
+            except (ImportError, AttributeError, TypeError) as e:
+                logger.error(
+                    f"Failed to dynamically load/find callable '{name_or_path}': {e}",
+                    exc_info=False,
+                )
+                # Fall through to raise KeyError
+        # 4. Handle built-ins if not found yet (might be redundant if simple name check worked)
+        elif name_or_path in builtins.__dict__:
+            func = builtins.__dict__[name_or_path]
             if callable(func):
-                self.register_callable(
-                    func, path_str
-                )  # Cache dynamically imported
+                self.register_callable(func, name_or_path)  # Cache it
                 logger.info(
-                    f"Successfully imported module callable '{path_str}'"
+                    f"Found and registered built-in callable '{name_or_path}'"
                 )
                 return func
-            else:
-                logger.error(
-                    f"Dynamically imported object '{path_str}' is not callable."
-                )
-                raise TypeError(
-                    f"Dynamically imported object '{path_str}' is not callable."
-                )
-        except (ImportError, AttributeError, KeyError, TypeError) as e:
-            logger.error(
-                f"Failed to dynamically load/find callable '{path_str}': {e}",
-                exc_info=True,
-            )
-            raise KeyError(
-                f"Callable '{path_str}' not found or failed to load: {e}"
-            ) from e
+
+        # 5. Final failure
+        logger.error(
+            f"Callable '{name_or_path}' not found in registry or via import."
+        )
+        raise KeyError(f"Callable '{name_or_path}' not found.")
 
     def get_callable_path_string(self, func: Callable) -> str | None:
         """Gets the path string for a callable, registering it if necessary."""

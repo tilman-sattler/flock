@@ -152,6 +152,11 @@ def resolve_inputs(
                 continue
 
             # Fallback to the initial input
+            var_value = context.get_variable(key)
+            if var_value is not None:
+                inputs[key] = var_value
+                continue
+
             inputs[key] = context.get_variable("flock." + key)
 
         # Case 2: A compound key (e.g., "agent_name.property" or "context.property")

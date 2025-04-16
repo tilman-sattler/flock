@@ -2,7 +2,7 @@ from collections.abc import Generator
 from typing import Any
 
 import dspy
-from pydantic import Field
+from pydantic import Field, PrivateAttr
 from rich.console import Console
 
 from flock.core.flock_agent import FlockAgent
@@ -35,7 +35,9 @@ class DeclarativeEvaluatorConfig(FlockEvaluatorConfig):
     kwargs: dict[str, Any] = Field(default_factory=dict)
 
 
-class DeclarativeEvaluator(FlockEvaluator, DSPyIntegrationMixin, PromptParserMixin):
+class DeclarativeEvaluator(
+    FlockEvaluator, DSPyIntegrationMixin, PromptParserMixin
+):
     """Evaluator that uses DSPy for generation."""
 
     config: DeclarativeEvaluatorConfig = Field(
@@ -43,8 +45,8 @@ class DeclarativeEvaluator(FlockEvaluator, DSPyIntegrationMixin, PromptParserMix
         description="Evaluator configuration",
     )
 
-    cost: float = 0.0
-    lm_history: list = Field(default_factory=list)
+    _cost: float = PrivateAttr(default=0.0)
+    _lm_history: list = PrivateAttr(default_factory=list)
 
     async def evaluate(
         self, agent: FlockAgent, inputs: dict[str, Any], tools: list[Any]
@@ -89,10 +91,14 @@ class DeclarativeEvaluator(FlockEvaluator, DSPyIntegrationMixin, PromptParserMix
 
         # --- Conditional Evaluation (Stream vs No Stream) ---
         if self.config.stream:
-            logger.info(f"Evaluating agent '{agent.name}' with async streaming.")
+            logger.info(
+                f"Evaluating agent '{agent.name}' with async streaming."
+            )
             if not callable(agent_task):
                 logger.error("agent_task is not callable, cannot stream.")
-                raise TypeError("DSPy task could not be created or is not callable.")
+                raise TypeError(
+                    "DSPy task could not be created or is not callable."
+                )
 
             streaming_task = dspy.streamify(agent_task)
             stream_generator: Generator = streaming_task(**inputs)
@@ -115,8 +121,8 @@ class DeclarativeEvaluator(FlockEvaluator, DSPyIntegrationMixin, PromptParserMix
                 result_dict, cost, lm_history = self._process_result(
                     chunk, inputs
                 )
-                self.cost = cost
-                self.lm_history = lm_history
+                self._cost = cost
+                self._lm_history = lm_history
 
             console.print("\n")
             return self.filter_thought_process(
@@ -131,8 +137,8 @@ class DeclarativeEvaluator(FlockEvaluator, DSPyIntegrationMixin, PromptParserMix
                 result_dict, cost, lm_history = self._process_result(
                     result_obj, inputs
                 )
-                self.cost = cost
-                self.lm_history = lm_history
+                self._cost = cost
+                self._lm_history = lm_history
                 return self.filter_thought_process(
                     result_dict, self.config.include_thought_process
                 )

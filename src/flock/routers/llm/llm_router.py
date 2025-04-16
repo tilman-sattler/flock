@@ -140,7 +140,7 @@ class LLMRouter(FlockRouter):
         )
         return HandOffRequest(
             next_agent=next_agent_name,
-            hand_off_mode="add",
+            output_to_input_merge_strategy="add",
             override_next_agent=None,
             override_context=None,
         )
