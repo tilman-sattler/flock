@@ -51,6 +51,7 @@ class DeclarativeEvaluator(FlockEvaluator, DSPyIntegrationMixin, PromptParserMix
     ) -> dict[str, Any]:
         """Evaluate using DSPy, with optional asynchronous streaming."""
         # --- Setup Signature and LM ---
+        # TODO: MODEL CONTEXT PROTOCOL LOGIC HERE
         try:
             _dspy_signature = self.create_dspy_signature_class(
                 agent.name,
