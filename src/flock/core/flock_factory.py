@@ -42,10 +42,12 @@ class FlockFactory:
     ) -> FlockAgent:
         """Creates a default FlockAgent.
 
-        The default agent includes a declarative evaluator with the following modules:
+        The default agent includes the following modules:
+        - DeclarativeEvaluator
         - OutputModule
+        - MetricsModule
 
-        It also includes often needed configurations like cache usage, rich tables, and output theme.
+        It also includes direct acces to the most important configurations.
         """
         eval_config = DeclarativeEvaluatorConfig(
             model=model,
