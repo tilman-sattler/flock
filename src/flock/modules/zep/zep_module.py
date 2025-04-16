@@ -8,6 +8,7 @@ from zep_python.types import Message as ZepMessage, SessionSearchResult
 from flock.core.context.context import FlockContext
 from flock.core.flock_agent import FlockAgent
 from flock.core.flock_module import FlockModule, FlockModuleConfig
+from flock.core.flock_registry import flock_component
 from flock.core.logging.logging import get_logger
 
 logger = get_logger("module.zep")
@@ -25,6 +26,7 @@ class ZepModuleConfig(FlockModuleConfig):
     enable_write: bool = False
 
 
+@flock_component(config_class=ZepModuleConfig)
 class ZepModule(FlockModule):
     """Module that adds Zep capabilities to a Flock agent."""
 
