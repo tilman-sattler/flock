@@ -24,6 +24,8 @@ loguru==0.7.3
     # via flock-core (pyproject.toml)
 matplotlib==3.10.1
     # via flock-core (pyproject.toml)
+mcp==1.6.0
+    # via flock-core (pyproject.toml)
 msgpack==1.1.0
     # via flock-core (pyproject.toml)
 nltk==3.9.1

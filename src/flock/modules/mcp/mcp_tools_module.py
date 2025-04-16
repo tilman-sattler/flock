@@ -84,7 +84,7 @@ class MCPToolsModule(FlockModule):
       during the availabilty check, a Message will be logged,
       BUT AGENT EXECUTION AND RUNNING WILL ONLY BE HALTED IF THE MCP-TOOL SERVER
       HAS BEEN CONFIGURED WITH `abort_on_error`=`True`!
-      Otherwise, the error will be logged, but execution will not be halted.
+      Otherwise, the error will be logged, but execution will NOT be halted.
     """
     return await super().initialize(agent, inputs, context)
   
