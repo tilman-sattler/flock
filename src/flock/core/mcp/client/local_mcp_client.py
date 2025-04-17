@@ -9,7 +9,7 @@ import platform
 from typing import Literal, Optional
 from contextlib import AsyncExitStack
 
-from mcp import ClientSession, StdioServerParameters
+from mcp import ClientSession, InitializeResult, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from mcp.client.sse import sse_client
 from pydantic import Field
@@ -80,7 +80,19 @@ class LocalMCPClient(MCPClient):
     Description:
       Connect to a local MCP Server
     """
-    stdio_transport = await self.exit_stack.enter_async_context
+    stdio_transport = await self.exit_stack.enter_async_context(stdio_client(
+      self.server_params
+    ))
+    stdio, write = stdio_transport # destructure into separate streams
+    session = await self.exit_stack.enter_async_context(ClientSession(stdio, write))
+    
+  
+  async def _try_initialize_connection(self, session: ClientSession):
+    """
+    Description:
+      
+    """
+    
   
   
   
