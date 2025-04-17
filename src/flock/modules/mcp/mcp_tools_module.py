@@ -2,6 +2,7 @@
 
 from typing import TYPE_CHECKING, Any
 
+from mcp import StdioServerParameters
 from pydantic import  Field
 
 from flock.core.context.context_vars import FLOCK_BATCH_SILENT_MODE
@@ -20,11 +21,56 @@ from flock.core.logging.logging import get_logger
 logger = get_logger("module.mcp.tools")
 
 class MCPToolsServerConfig():
-  """Stores the configuration for a MCP-Server"""
-  pass
+  """
+  Stores the configuration for a MCP-Server
+  
+  Parameters:
+    abort_on_error (bool): Whether or not the agent should abort execution if this MCP-Server is not reachable
+    cache_lifetime_ms (int): How long retrieved tools should be cached in milliseconds. Defaults to 100_000ms (100s)
+  """
+  
+  abort_on_error: bool = Field(
+    default=True, description="Whether or not the agent should abort execution if this MCP-Server is not reachable."
+  )
+  
+  cache_lifetime_ms: int = Field(
+    default=100_000,
+    description="How long retrieved tools should be cached in milliseconds. Defaults to 100_000ms (100s)"
+  )
+  
+class LocalMCPToolsServerConfig(MCPToolsServerConfig):
+  """
+  Stores the configuration for a Local MCP-Server Script
+  
+  Parameters:
+    abort_on_error (bool): Whether or not the agent should abort execution if this MCP-Server is not callable.
+    cache_lifetime_ms (int): How long retrieved tools should be cached in milliseconds. Defaults to 100_000ms (100s)
+  """
+  
+  server_script_path: str = Field(
+    default="",
+    description="Path to the server script"
+  )
+  
+  is_python: bool = server_script_path.endswith('.py')
+  is_js: bool = server_script_path.endswith('.js')
+  
+  if not (is_python or is_js):
+    raise ValueError("Server script mus be a .py or .js file")
+  
+  command: str = "python" if is_python else "node"
+  
+  server_params: StdioServerParameters = StdioServerParameters(
+    command=command,
+    args=[server_script_path],
+    env=None # TODO: add dynamic env
+  )
+    
 
 class MCPToolsModuleConfig(FlockModuleConfig):
-  """Configuration for MCP Tool Handling"""
+  """
+  Configuration for MCP Tool Handling
+  """
   
   theme: OutputTheme = Field(
     default=OutputTheme.afterglow, description="Theme for logging"
@@ -41,9 +87,21 @@ class MCPToolsModule(FlockModule):
   Servers. This module will retrieve the necessary tools and modify the agent it is attached to
   to inject the tools into the agent to allow it to call them.
   
+  More Info on Tools: https://modelcontextprotocol.io/docs/concepts/tools
+  
   The Module will retrieve the tools the configured 
   MCP Servers provide by hooking into the `initialize`
   lifecycle-hook of the agent(s) it is attached to
+  
+  Parameters:
+    name (str): The name for this Module. Used for identifying during logging and development
+    config (MCPToolsModuleConfig): Configuration for the MCP-Servers for the Module
+  
+  NOTE:
+    Tools are a powerful primitive in the Model Context Protocol (MCP)
+    that enable servers to expose executable functionality to clients.
+    Through tools, LLMs can interact with external systems, perform computations,
+    and take actions in the real world.
   
   NOTE:
     This will ONLY provide access to 'Tools' that the servers provide!
