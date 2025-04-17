@@ -1,13 +1,13 @@
 from flock.core.exception.flock_exception import FlockException
 
 
-class FlockConfigurationException(FlockException):
+class FlockMCPConnectionException(FlockException):
   """
   Description:
-    Exception raised in the case of faulty configuration in Flock components
-  
+    Exception raised when a connection to a MCP-Server fails for whatever
+    reason.
   Attributes:
-    `message` (str): explanation of the error.
+    `message` (str): explanation of the error
   """
   
   def __init__(self, message: str, *args):

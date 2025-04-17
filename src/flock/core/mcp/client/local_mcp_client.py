@@ -9,12 +9,14 @@ import platform
 from typing import Literal, Optional
 from contextlib import AsyncExitStack
 
-from mcp import ClientSession, InitializeResult, StdioServerParameters
+from mcp import ClientSession, Implementation, InitializeResult, ServerCapabilities, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from mcp.client.sse import sse_client
 from pydantic import Field
 
 from flock.core.exception.flock_configuration_exception import FlockConfigurationException
+from flock.core.exception.flock_mcp_connection_exception import FlockMCPConnectionException
+from flock.core.logging.trace_and_logged import traced_and_logged
 from flock.core.mcp.client.mcp_client import MCPClient, MCPClientConfiguration
 from flock.core.serialization.serializable import Serializable
 from flock.core.logging.logging import get_logger
@@ -57,6 +59,11 @@ class LocalMCPClient(MCPClient):
     description="The client session for the MCP-Client."
   )
   
+  init_result: Optional[InitializeResult] = Field(
+    exclude=True,
+    description="Lists the Properties of a Server"
+  )
+  
   exit_stack: AsyncExitStack = Field(
     exclude=True,
     description="Async context manager."
@@ -66,32 +73,73 @@ class LocalMCPClient(MCPClient):
     exclude=True,
     description="Paramters for connection."
   )
-
   
   def __init__(self, config: LocalMCPClientConfiguration):
     super().__init__(config)
     self.session = None
     self.exit_stack = AsyncExitStack()
     self.server_params = LocalMCPClient._try_setup_local_server_config(config)
-      
+    self.session = None
+
   
-  async def _connect(self):
+  @traced_and_logged
+  async def get_tools(self):
+    """
+    Description:
+      Retrieves the list of available tools from the configured MCP-Server.
+    """
+    if self.session is None:
+      session, init_result = await self._connect()
+      self.session = session
+      self.init_result = init_result
+    
+    has_tools: bool = 
+      
+  @traced_and_logged
+  async def _connect(self) -> tuple[ClientSession, InitializeResult]:
     """
     Description:
       Connect to a local MCP Server
     """
+    logger.info(f"Attempting to connect to local MCP-Server: {self.configuration.server_script_path}")
     stdio_transport = await self.exit_stack.enter_async_context(stdio_client(
       self.server_params
     ))
+    logger.info(f"Establishing Transport for local MCP-Server: {self.configuration.server_script_path}. Using stdin, stdout.")
     stdio, write = stdio_transport # destructure into separate streams
     session = await self.exit_stack.enter_async_context(ClientSession(stdio, write))
+    init_result: InitializeResult = await self._try_initialize_connection(session=session, max_retries=self.configuration.max_retries)
+    logger.info(f"Established Connection to local MCP-Server: {self.configuration.server_script_path}")
+    return (session, init_result)
     
-  
-  async def _try_initialize_connection(self, session: ClientSession):
+  @traced_and_logged
+  async def _try_initialize_connection(self, session: ClientSession, max_retries: int) -> InitializeResult:
     """
     Description:
-      
+      Attempts to initialize the connection to a local MCP-Server over JSONRPC.
+      It will try to attempt it `max_retries` times in case of failure.
+      If `max_retries` has been exceeded, it will throw a FlockMCPConnectionException
+    Arguments:
+      `session` (ClientSession): session-object for the connection
+      `max_retries` (int): Maximum number of retries
+    Returns:
+      `result` (InitializeResult): Result of the initialization
+    Throws:
+      `exception` (FlockMCPConnectionException): Exception containing the details of what went wrong.
     """
+    current_attempt: int = 0
+    ex: Exception | None = None
+    while current_attempt < max_retries:
+      try:
+        init_result: InitializeResult =  await session.initialize()
+        return init_result
+      except Exception as e:
+        logger.exception(f"Exception when attempting to connect to local MCP-Server: {e}")
+        current_attempt += 1
+        ex = e # Keep in mind, what happened.
+        continue
+      
+    raise FlockMCPConnectionException(message=f"Connection to local MCP-Server failed. Reason: {e}")
     
   
   
@@ -114,7 +162,7 @@ class LocalMCPClient(MCPClient):
     
     
     if not (is_python or is_javascript) and not is_native:
-      ex = FlockConfigurationException(f"{config.server_script_path} must have the .py or .js ending or be a native executable.")
+      ex = FlockConfigurationException(message=f"{config.server_script_path} must have the .py or .js ending or be a native executable.")
       logger.exception(ex.message)
       raise ex
     

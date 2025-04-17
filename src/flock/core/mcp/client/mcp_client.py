@@ -22,6 +22,10 @@ class MCPClientConfiguration(Serializable):
     description="Name of the Client for Identification"
   )
 
+  max_retries: int = Field(
+    default=3,
+    description="How many retries should be undertaken to connect to a MCP-Server"
+  )
   
 
 class MCPClient(Serializable):
@@ -36,13 +40,3 @@ class MCPClient(Serializable):
   def __init__(self, mcpClientConfiguration: MCPClientConfiguration):
     """Initialize session and client objects"""
     self.configuration = mcpClientConfiguration
-    
-  
-  async def _connect(self):
-    pass
-  
-  async def _connect_local(self):
-    pass
-  
-  async def _connect_sse(self):
-    pass
