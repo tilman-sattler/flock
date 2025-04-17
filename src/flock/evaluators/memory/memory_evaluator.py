@@ -4,6 +4,7 @@ from pydantic import Field
 
 from flock.core.flock_agent import FlockAgent
 from flock.core.flock_evaluator import FlockEvaluator, FlockEvaluatorConfig
+from flock.core.flock_registry import flock_component
 from flock.core.mixin.dspy_integration import DSPyIntegrationMixin
 from flock.core.mixin.prompt_parser import PromptParserMixin
 from flock.modules.memory.memory_module import MemoryModule, MemoryModuleConfig
@@ -45,6 +46,7 @@ class MemoryEvaluatorConfig(FlockEvaluatorConfig):
     )
 
 
+@flock_component(config_class=MemoryEvaluatorConfig)
 class MemoryEvaluator(FlockEvaluator, DSPyIntegrationMixin, PromptParserMixin):
     """Evaluator that uses DSPy for generation."""
 

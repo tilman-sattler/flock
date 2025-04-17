@@ -86,7 +86,7 @@ class AssertionModuleConfig(FlockModuleConfig):
     )
 
 
-@flock_component
+@flock_component(config_class=AssertionModuleConfig)
 class AssertionCheckerModule(FlockModule):
     """Checks the output of an agent against a set of defined rules.
 

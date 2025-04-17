@@ -4,6 +4,7 @@ from pydantic import Field
 
 from flock.core.flock_agent import FlockAgent
 from flock.core.flock_evaluator import FlockEvaluator, FlockEvaluatorConfig
+from flock.core.flock_registry import flock_component
 from flock.core.mixin.dspy_integration import DSPyIntegrationMixin
 
 
@@ -13,6 +14,7 @@ class TestCaseEvaluatorConfig(FlockEvaluatorConfig):
     pass
 
 
+@flock_component(config_class=TestCaseEvaluatorConfig)
 class TestCaseEvaluator(FlockEvaluator, DSPyIntegrationMixin):
     """Evaluator for test cases."""
 

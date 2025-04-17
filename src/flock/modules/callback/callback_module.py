@@ -7,6 +7,7 @@ from pydantic import Field
 
 from flock.core import FlockModule, FlockModuleConfig
 from flock.core.context.context import FlockContext
+from flock.core.flock_registry import flock_component
 
 
 class CallbackModuleConfig(FlockModuleConfig):
@@ -36,6 +37,7 @@ class CallbackModuleConfig(FlockModuleConfig):
     )
 
 
+@flock_component(config_class=CallbackModuleConfig)
 class CallbackModule(FlockModule):
     """Module that provides callback functionality for agent lifecycle events."""
 

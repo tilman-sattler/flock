@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, validator
 from flock.core.context.context import FlockContext
 from flock.core.flock_agent import FlockAgent
 from flock.core.flock_module import FlockModule, FlockModuleConfig
+from flock.core.flock_registry import flock_component
 
 
 class MetricPoint(BaseModel):
@@ -69,6 +70,7 @@ class MetricsModuleConfig(FlockModuleConfig):
         return v
 
 
+@flock_component(config_class=MetricsModuleConfig)
 class MetricsModule(FlockModule):
     """Module for collecting and analyzing agent performance metrics."""
 

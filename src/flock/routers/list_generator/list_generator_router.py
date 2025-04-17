@@ -47,7 +47,7 @@ class IterativeListGeneratorRouterConfig(FlockRouterConfig):
     # item_type_str: Optional[str] = None # e.g., 'dict[str, str]' or 'MyChapterType'
 
 
-@flock_component
+@flock_component(config_class=IterativeListGeneratorRouterConfig)
 class IterativeListGeneratorRouter(FlockRouter):
     name: str = "iterative_list_generator"
     config: IterativeListGeneratorRouterConfig = Field(

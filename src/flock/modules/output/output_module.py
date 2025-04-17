@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import Field
 
 from flock.core.context.context_vars import FLOCK_BATCH_SILENT_MODE
+from flock.core.flock_registry import flock_component
 
 if TYPE_CHECKING:
     from flock.core import FlockAgent
@@ -60,6 +61,7 @@ class OutputModuleConfig(FlockModuleConfig):
     )
 
 
+@flock_component(config_class=OutputModuleConfig)
 class OutputModule(FlockModule):
     """Module that handles output formatting and display."""
 

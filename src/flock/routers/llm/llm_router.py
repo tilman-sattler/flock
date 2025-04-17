@@ -7,6 +7,7 @@ import litellm
 
 from flock.core.context.context import FlockContext
 from flock.core.flock_agent import FlockAgent
+from flock.core.flock_registry import flock_component
 from flock.core.flock_router import (
     FlockRouter,
     FlockRouterConfig,
@@ -29,6 +30,7 @@ class LLMRouterConfig(FlockRouterConfig):
     prompt: str = ""
 
 
+@flock_component(config_class=LLMRouterConfig)
 class LLMRouter(FlockRouter):
     """Router that uses an LLM to determine the next agent in a workflow.
 
