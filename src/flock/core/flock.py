@@ -340,6 +340,10 @@ class Flock(BaseModel, Serializable):
                     "No start_agent specified and multiple/no agents exist."
                 )
 
+            # Check if start_agent is in agents
+            if start_agent_name not in self._agents:
+                raise ValueError(f"Start agent '{start_agent_name}' not found.")
+
             run_input = input if input is not None else self._start_input
             effective_run_id = run_id or f"flockrun_{uuid.uuid4().hex[:8]}"
 
