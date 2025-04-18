@@ -98,7 +98,7 @@ def test_loading_component_from_file_path():
                 path = line.split("file_path:", 1)[1].strip()
                 if path:
                     # Check that this is an absolute path that exists
-                    assert path.startswith("/")
+                    assert path.startswith("/") or path.startswith("C:")
                     assert os.path.exists(path), f"Path does not exist: {path}"
         
     finally:

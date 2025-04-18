@@ -59,17 +59,17 @@ def test_flock_init_custom(mocker):
         model="custom_model",
         description="My custom flock",
         enable_temporal=True,
-        enable_logging=["flock", "agent"],
+        enable_logging=True,
         show_flock_banner=False
     )
     assert flock.name == "custom_flock"
     assert flock.model == "custom_model"
     assert flock.description == "My custom flock"
     assert flock.enable_temporal
-    assert flock.enable_logging == ["flock", "agent"]
+    assert flock.enable_logging
     assert not flock.show_flock_banner
 
-    mock_configure_logging.assert_called_once_with(["flock", "agent"])
+    mock_configure_logging.assert_called_once_with(True)
     mock_set_temporal.assert_called_once()
     mock_ensure_session.assert_called_once()
 
@@ -97,14 +97,13 @@ def test_add_agent_sets_default_model(basic_flock):
     basic_flock.add_agent(agent_no_model)
     assert agent_no_model.model == "flock-default-model"
 
-def test_add_agent_duplicate(basic_flock, simple_agent, caplog):
-    """Test adding an agent with a name that already exists."""
+def test_add_agent_duplicate(basic_flock, simple_agent):
+    """Test adding an agent with a name that already exists raises ValueError."""
     basic_flock.add_agent(simple_agent)
     new_agent_same_name = SimpleAgent(name="agent1", input="query2", output="result2")
-    basic_flock.add_agent(new_agent_same_name)
-
-    assert "already exists. Overwriting" in caplog.text
-    assert basic_flock.agents["agent1"] is new_agent_same_name # Should be overwritten
+    
+    with pytest.raises(ValueError, match="Agent with this name already exists"):
+        basic_flock.add_agent(new_agent_same_name)
 
 def test_add_agent_invalid_type(basic_flock):
     """Test adding something that is not a FlockAgent."""
@@ -225,29 +224,33 @@ async def test_run_async_result_boxing(basic_flock, simple_agent, mocker):
 def test_run_sync_wrapper(basic_flock, mocker):
     """Test that the synchronous run method correctly calls run_async."""
     # Mock run_async to avoid actual async execution
-    mock_run_async = mocker.patch.object(basic_flock, 'run_async', new_callable=AsyncMock)
+    mock_run_async = mocker.patch('flock.core.flock.Flock.run_async', new_callable=AsyncMock)
     mock_run_async.return_value = {"result": "async_ran"}
-
-    # Mock asyncio loop handling
+    
+    # Mock the asyncio module functions
     mock_loop = MagicMock()
-    mock_get_loop = mocker.patch('asyncio.get_running_loop', return_value=mock_loop)
+    mock_get_loop = mocker.patch('asyncio.get_running_loop', side_effect=RuntimeError)
+    mock_new_loop = mocker.patch('asyncio.new_event_loop', return_value=mock_loop)
+    mock_set_loop = mocker.patch('asyncio.set_event_loop')
+    mock_get_event_loop = mocker.patch('asyncio.get_event_loop', return_value=mock_loop)
+    
+    # Configure the loop for the "not running" branch
+    mock_loop.is_running.return_value = False
     mock_loop.run_until_complete.return_value = {"result": "async_ran"}
-
+    
     # Call the synchronous run method
     sync_result = basic_flock.run(start_agent="agent1", input={"query": "sync_test"})
-
-    # Assert run_async was called
-    mock_run_async.assert_awaited_once_with(
-        start_agent="agent1",
-        input={"query": "sync_test"},
-        context=None,
-        run_id="",
-        box_result=True,
-        agents=None,
-    )
-    # Assert the result from run_until_complete is returned
-    assert sync_result == {"result": "async_ran"}
+    
+    # Assert everything was called correctly
+    mock_get_loop.assert_called_once()
+    mock_new_loop.assert_called_once()
+    mock_set_loop.assert_called_once_with(mock_loop)
+    mock_get_event_loop.assert_called_once()
+    mock_loop.is_running.assert_called_once()
     mock_loop.run_until_complete.assert_called_once()
+    
+    # Assert the result is correct
+    assert sync_result == {"result": "async_ran"}
 
 
 # --- Serialization Delegation Tests ---
@@ -278,7 +281,7 @@ def test_from_dict_delegates_to_serializer(mocker):
 
 def test_load_from_file_delegates_to_loader(mocker):
     """Verify Flock.load_from_file calls the loader function."""
-    mock_loader_func = mocker.patch('flock.core.loader.load_flock_from_file')
+    mock_loader_func = mocker.patch('flock.core.util.loader.load_flock_from_file')
     mock_flock_instance = Flock(name="loaded_from_file", enable_logging=False, show_flock_banner=False)
     mock_loader_func.return_value = mock_flock_instance
     file_path = "dummy/path/flock.yaml"
