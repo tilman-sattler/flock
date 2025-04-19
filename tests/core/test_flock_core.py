@@ -10,13 +10,10 @@ from flock.core.flock import Flock
 from flock.core.flock_agent import FlockAgent
 from flock.core.context.context import FlockContext
 from flock.core.flock_registry import get_registry, FlockRegistry
+from flock.workflow.temporal_config import TemporalRetryPolicyConfig, TemporalWorkflowConfig
 
 # Import Temporal Config models
-from flock.config.temporal_config import (
-    TemporalWorkflowConfig,
-    TemporalRetryPolicyConfig,
-    TemporalActivityConfig
-)
+
 
 # Simple mock agent for testing addition
 class SimpleAgent(FlockAgent):
@@ -342,8 +339,8 @@ async def test_run_async_temporal_uses_workflow_config(simple_agent, mocker):
     assert isinstance(call_args[1], FlockContext) # Second arg is the context
     
     # Check keyword arguments passed to run_temporal_workflow
-    # Currently only box_result and memo are kwargs
-    assert call_kwargs == {'box_result': False} # No memo passed in this case
+    # Assert that box_result is False and memo is its default (None)
+    assert call_kwargs == {'box_result': False, 'memo': None} 
     
     # We need to mock deeper (start_workflow) to check queue/timeouts, 
     # but we *can* check that the config is correctly stored on the Flock instance passed.
@@ -355,13 +352,15 @@ async def test_run_async_temporal_passes_memo(basic_flock, simple_agent, mocker)
     """Verify run_async passes the memo argument to the temporal executor."""
     basic_flock.enable_temporal = True
     basic_flock.add_agent(simple_agent)
+    # Patch where it's called from (in the flock module)
     mock_temporal_exec = mocker.patch('flock.core.flock.run_temporal_workflow', new_callable=AsyncMock)
-    mock_init_context = mocker.patch('flock.core.flock.initialize_context')
+    mock_init_context = mocker.patch('flock.core.flock.initialize_context') # Keep this mock
     mock_temporal_exec.return_value = {"result": "memo_test"}
     
     memo_data = {"user": "test_user", "run": 123}
     input_data = {"query": "test"}
 
+    # Call run_async only ONCE
     await basic_flock.run_async(
         start_agent="agent1", 
         input=input_data, 
@@ -369,38 +368,15 @@ async def test_run_async_temporal_passes_memo(basic_flock, simple_agent, mocker)
         box_result=False
     )
     
-    mock_temporal_exec.assert_awaited_once()
-    call_args, call_kwargs = mock_temporal_exec.call_args
-    
-    # Check positional arguments (Flock instance, context)
-    assert len(call_args) == 2 
-    assert call_args[0] is basic_flock 
-    assert isinstance(call_args[1], FlockContext) 
-    
-    # Check keyword arguments (box_result, memo)
-    # run_temporal_workflow should receive memo in its kwargs
-    # Need to update run_temporal_workflow signature if we want to assert memo here
-    # For now, assume it gets passed down. Let's add memo to the mock signature.
-    # Re-patching with correct signature expectation (might be simpler to mock start_workflow)
-    mock_temporal_exec_with_memo = mocker.patch(
-        'flock.core.execution.temporal_executor.run_temporal_workflow', 
-        new_callable=AsyncMock
-    )
-    mock_temporal_exec_with_memo.return_value = {"result": "memo_test"}
-    
-    await basic_flock.run_async(
-        start_agent="agent1", 
-        input=input_data, 
-        memo=memo_data, 
-        box_result=False
-    )
-    
-    mock_temporal_exec_with_memo.assert_awaited_once_with(
+    # Assert the single mock was called correctly
+    mock_temporal_exec.assert_awaited_once_with(
         basic_flock, 
         mocker.ANY, # Context object (check type separately if needed)
         box_result=False, 
         memo=memo_data # Assert memo is passed as kwarg
     )
+    # Verify context was initialized
+    mock_init_context.assert_called_once()
 
 # --- Serialization/Dict Tests (Placeholders - Add to serialization tests) ---
 

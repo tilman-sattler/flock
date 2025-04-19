@@ -319,6 +319,7 @@ class Flock(BaseModel, Serializable):
         run_id: str = "",
         box_result: bool = True,
         agents: list[FlockAgent] | None = None,
+        memo: dict[str, Any] | None = None,
     ) -> Box | dict:
         """Entry point for running an agent system asynchronously."""
         # Import here to allow forward reference resolution
@@ -441,6 +442,7 @@ class Flock(BaseModel, Serializable):
                         self,  # Pass the Flock instance
                         run_context,
                         box_result=False,
+                        memo=memo,
                     )
 
                 span.set_attribute("result.type", str(type(result)))
