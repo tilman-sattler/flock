@@ -3,8 +3,9 @@
 from flock.core.context.context import FlockContext
 from flock.core.context.context_vars import FLOCK_RUN_ID
 from flock.core.logging.logging import get_logger
-from flock.workflow.activities import (
-    run_agent,  # Activity function used in Temporal
+from flock.workflow.agent_execution_activity import (
+    determine_next_agent,
+    execute_single_agent,
 )
 from flock.workflow.temporal_setup import create_temporal_client, setup_worker
 
@@ -29,8 +30,11 @@ async def run_temporal_workflow(
             FlockWorkflow,  # Your workflow class
         )
 
-        logger.info("Setting up Temporal workflow")
-        await setup_worker(workflow=FlockWorkflow, activity=run_agent)
+        logger.info("Setting up Temporal worker with granular activities")
+        await setup_worker(
+            workflow=FlockWorkflow,
+            activities=[execute_single_agent, determine_next_agent],
+        )
         logger.debug("Creating Temporal client")
         flock_client = await create_temporal_client()
         workflow_id = context.get_variable(FLOCK_RUN_ID)

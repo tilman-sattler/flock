@@ -20,7 +20,7 @@ class AgentRunRecord(BaseModel):
     data: dict[str, Any] = Field(default_factory=dict)
     timestamp: str = Field(default="")
     hand_off: dict | None = Field(default_factory=dict)
-    called_from: str = Field(default="")
+    called_from: str | None = Field(default=None)
 
 
 class AgentDefinition(BaseModel):
@@ -131,6 +131,15 @@ class FlockContext(Serializable, BaseModel):
 
     def get_agent_definition(self, agent_name: str) -> AgentDefinition | None:
         return self.agent_definitions.get(agent_name)
+
+    def get_last_agent_name(self) -> str | None:
+        """Returns the name of the agent from the most recent history record."""
+        if not self.history:
+            return None
+        last_record = self.history[-1]
+        # The 'called_from' field in the *next* record is the previous agent.
+        # However, to get the name of the *last executed agent*, we look at the 'agent' field.
+        return last_record.agent
 
     def add_agent_definition(
         self, agent_type: type, agent_name: str, agent_data: Any
