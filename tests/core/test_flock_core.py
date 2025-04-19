@@ -2,6 +2,7 @@
 import asyncio
 import pytest
 from unittest.mock import MagicMock, patch, AsyncMock
+from datetime import timedelta # Import timedelta
 
 from pydantic import BaseModel
 
@@ -9,6 +10,10 @@ from flock.core.flock import Flock
 from flock.core.flock_agent import FlockAgent
 from flock.core.context.context import FlockContext
 from flock.core.flock_registry import get_registry, FlockRegistry
+from flock.workflow.temporal_config import TemporalRetryPolicyConfig, TemporalWorkflowConfig
+
+# Import Temporal Config models
+
 
 # Simple mock agent for testing addition
 class SimpleAgent(FlockAgent):
@@ -195,9 +200,10 @@ async def test_run_async_no_start_agent_multiple_agents(basic_flock, simple_agen
         await basic_flock.run_async(input={"query": "test"})
 
 @pytest.mark.asyncio
-async def test_run_async_agent_not_found(basic_flock):
-    """Test run_async raises error if start agent doesn't exist."""
-    with pytest.raises(ValueError, match="Start agent 'non_existent_agent' not found"):
+async def test_run_async_agent_not_found_in_registry(basic_flock, mocker):
+    """Test run_async raises error if start agent not found locally or in registry."""
+    mocker.patch.object(FlockRegistry, 'get_agent', return_value=None)
+    with pytest.raises(ValueError, match="Start agent 'non_existent_agent' not found locally or in registry"):
         await basic_flock.run_async(start_agent="non_existent_agent", input={"query": "test"})
 
 @pytest.mark.asyncio
@@ -290,3 +296,142 @@ def test_load_from_file_delegates_to_loader(mocker):
 
     mock_loader_func.assert_called_once_with(file_path)
     assert result is mock_flock_instance
+
+# --- Temporal Config Tests (Mocking run_temporal_workflow) ---
+
+@pytest.mark.asyncio
+async def test_run_async_temporal_uses_workflow_config(simple_agent, mocker):
+    """Verify run_async passes correct workflow config options to the temporal executor."""
+    mock_temporal_exec = mocker.patch('flock.core.flock.run_temporal_workflow', new_callable=AsyncMock)
+    mock_init_context = mocker.patch('flock.core.flock.initialize_context')
+    mock_temporal_exec.return_value = {"result": "temporal_config_test"}
+
+    # 1. Define specific Temporal Workflow Config
+    retry_config = TemporalRetryPolicyConfig(maximum_attempts=5)
+    workflow_config = TemporalWorkflowConfig(
+        task_queue="config-test-queue",
+        workflow_execution_timeout=timedelta(minutes=15),
+        workflow_run_timeout=timedelta(minutes=5),
+        default_activity_retry_policy=retry_config
+    )
+    
+    # 2. Create Flock with this config
+    flock_with_config = Flock(
+        name="flock_with_temporal_cfg",
+        enable_temporal=True, 
+        temporal_config=workflow_config, 
+        agents=[simple_agent], # Add agent directly
+        enable_logging=False, 
+        show_flock_banner=False
+    )
+
+    input_data = {"query": "test"}
+    # 3. Run the flock
+    await flock_with_config.run_async(start_agent="agent1", input=input_data, box_result=False)
+
+    # 4. Assert run_temporal_workflow was called correctly
+    mock_temporal_exec.assert_awaited_once()
+    call_args, call_kwargs = mock_temporal_exec.call_args
+    
+    # Check positional arguments passed to run_temporal_workflow
+    assert len(call_args) == 2 # Should be (flock_instance, context)
+    assert call_args[0] is flock_with_config # First arg is the Flock instance
+    assert isinstance(call_args[1], FlockContext) # Second arg is the context
+    
+    # Check keyword arguments passed to run_temporal_workflow
+    # Assert that box_result is False and memo is its default (None)
+    assert call_kwargs == {'box_result': False, 'memo': None} 
+    
+    # We need to mock deeper (start_workflow) to check queue/timeouts, 
+    # but we *can* check that the config is correctly stored on the Flock instance passed.
+    passed_flock_instance = call_args[0]
+    assert passed_flock_instance.temporal_config is workflow_config
+
+@pytest.mark.asyncio
+async def test_run_async_temporal_passes_memo(basic_flock, simple_agent, mocker):
+    """Verify run_async passes the memo argument to the temporal executor."""
+    basic_flock.enable_temporal = True
+    basic_flock.add_agent(simple_agent)
+    # Patch where it's called from (in the flock module)
+    mock_temporal_exec = mocker.patch('flock.core.flock.run_temporal_workflow', new_callable=AsyncMock)
+    mock_init_context = mocker.patch('flock.core.flock.initialize_context') # Keep this mock
+    mock_temporal_exec.return_value = {"result": "memo_test"}
+    
+    memo_data = {"user": "test_user", "run": 123}
+    input_data = {"query": "test"}
+
+    # Call run_async only ONCE
+    await basic_flock.run_async(
+        start_agent="agent1", 
+        input=input_data, 
+        memo=memo_data, # Pass memo here
+        box_result=False
+    )
+    
+    # Assert the single mock was called correctly
+    mock_temporal_exec.assert_awaited_once_with(
+        basic_flock, 
+        mocker.ANY, # Context object (check type separately if needed)
+        box_result=False, 
+        memo=memo_data # Assert memo is passed as kwarg
+    )
+    # Verify context was initialized
+    mock_init_context.assert_called_once()
+
+@pytest.mark.asyncio
+async def test_run_async_temporal_no_in_process_worker(basic_flock, simple_agent, mocker):
+    """Test that the in-process worker is NOT started if flag is False."""
+    # Mock the executor and the setup_worker function it calls
+    mock_temporal_exec = mocker.patch('flock.core.flock.run_temporal_workflow', new_callable=AsyncMock)
+    mock_setup_worker = mocker.patch('flock.core.execution.temporal_executor.setup_worker') # Patch setup_worker in executor
+    mock_create_task = mocker.patch('asyncio.create_task') # To check if worker.run() task is created
+    
+    # Configure Flock to disable in-process worker
+    basic_flock.enable_temporal = True
+    basic_flock.temporal_start_in_process_worker = False
+    basic_flock.add_agent(simple_agent)
+    
+    # Mock the return value of the executor itself (since setup_worker won't be called to run it)
+    # Need to actually call the real executor but mock deeper dependencies
+    
+    # --- Let's adjust the mocking strategy --- 
+    # We need to call the *real* run_temporal_workflow, but mock its internal call to setup_worker
+    # So, don't mock run_temporal_workflow itself. Patch setup_worker and start_workflow.
+    
+    mocker.patch('flock.core.flock.run_temporal_workflow', wraps=run_temporal_workflow) # Use wraps if needed, but let's patch deeper
+    
+    mock_setup_worker = mocker.patch('flock.core.execution.temporal_executor.setup_worker', new_callable=AsyncMock)
+    # Mock the client and start_workflow to prevent actual Temporal calls
+    mock_client = MagicMock()
+    mock_handle = MagicMock()
+    mock_handle.result = AsyncMock(return_value={"result": "no_worker_test"})
+    mock_client.start_workflow = AsyncMock(return_value=mock_handle)
+    mocker.patch('flock.core.execution.temporal_executor.create_temporal_client', new_callable=AsyncMock, return_value=mock_client)
+    
+    # Reconfigure Flock
+    flock_no_worker = Flock(
+        name="flock_no_worker",
+        enable_temporal=True,
+        temporal_start_in_process_worker=False, # Key setting
+        agents=[simple_agent],
+        enable_logging=False,
+        show_flock_banner=False
+    )
+    
+    # Run
+    await flock_no_worker.run_async(start_agent="agent1", input={"query": "test"}, box_result=False)
+    
+    # Assert: setup_worker should NOT have been called
+    mock_setup_worker.assert_not_awaited()
+    # Assert: start_workflow WAS called (the workflow execution should still be attempted)
+    mock_client.start_workflow.assert_awaited_once()
+
+# --- Serialization/Dict Tests (Placeholders - Add to serialization tests) ---
+
+# TODO: Add tests in tests/serialization/ to verify TemporalWorkflowConfig 
+#       and TemporalActivityConfig are correctly handled by Flock.to_dict() / from_dict() 
+#       and FlockAgent.to_dict() / from_dict().
+# Tests added to tests/serialization/test_flock_serializer.py
+
+
+# --- Other Tests (Keep existing tests like boxing, sync wrapper etc.) ---

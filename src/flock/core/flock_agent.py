@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from flock.core.serialization.json_encoder import FlockJSONEncoder
+from flock.workflow.temporal_config import TemporalActivityConfig
 
 if TYPE_CHECKING:
     from flock.core.context.context import FlockContext
@@ -110,6 +111,12 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
         description="Dictionary of FlockModules attached to this agent.",
     )
 
+    # --- Temporal Configuration (Optional) ---
+    temporal_activity_config: TemporalActivityConfig | None = Field(
+        default=None,
+        description="Optional Temporal settings specific to this agent's activity execution.",
+    )
+
     # --- Runtime State (Excluded from Serialization) ---
     context: FlockContext | None = Field(
         default=None,
@@ -130,6 +137,7 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
         modules: dict[str, "FlockModule"] | None = None,  # Use dict for modules
         write_to_file: bool = False,
         wait_for_input: bool = False,
+        temporal_activity_config: TemporalActivityConfig | None = None,
         **kwargs,
     ):
         super().__init__(
@@ -146,6 +154,7 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
             modules=modules
             if modules is not None
             else {},  # Ensure modules is a dict
+            temporal_activity_config=temporal_activity_config,
             **kwargs,
         )
 
@@ -723,202 +732,196 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
 
     @classmethod
     def from_dict(cls: type[T], data: dict[str, Any]) -> T:
-        """Create instance from dictionary representation."""
-        from flock.core.flock_registry import get_registry
-
-        logger.debug(
-            f"Deserializing agent from dict. Provided keys: {list(data.keys())}"
-        )
-        if "name" not in data:
-            raise ValueError("Agent data must include a 'name' field.")
-        FlockRegistry = get_registry()
-        agent_name = data["name"]  # For logging context
-        logger.info(f"Deserializing agent '{agent_name}'")
-
-        # Pop complex components to handle them after basic agent instantiation
-        evaluator_data = data.pop("evaluator", None)
-        router_data = data.pop("handoff_router", None)
-        modules_data = data.pop("modules", {})
-        tools_data = data.pop("tools", [])
-        description_callable = data.pop("description_callable", None)
-        input_callable = data.pop("input_callable", None)
-        output_callable = data.pop("output_callable", None)
-
-        logger.debug(
-            f"Agent '{agent_name}' has {len(modules_data)} modules and {len(tools_data)} tools"
+        """Deserialize the agent from a dictionary, including components, tools, and callables."""
+        from flock.core.flock_registry import (
+            get_registry,  # Import registry locally
         )
 
-        # Deserialize remaining data recursively (handles nested basic types/callables)
-        # Note: Pydantic v2 handles most basic deserialization well if types match.
-        # Explicit deserialize_item might be needed if complex non-pydantic structures exist.
-        # For now, assume Pydantic handles basic fields based on type hints.
-        deserialized_basic_data = data  # Assume Pydantic handles basic fields
+        registry = get_registry()
+        logger.debug(
+            f"Deserializing agent from dict. Keys: {list(data.keys())}"
+        )
 
-        try:
-            # Create the agent instance using Pydantic's constructor
-            logger.debug(
-                f"Creating agent instance with fields: {list(deserialized_basic_data.keys())}"
-            )
-            agent = cls(**deserialized_basic_data)
-        except Exception as e:
-            logger.error(
-                f"Pydantic validation/init failed for agent '{agent_name}': {e}",
-                exc_info=True,
-            )
+        # --- Separate Data ---
+        component_configs = {}
+        callable_configs = {}
+        tool_config = []
+        agent_data = {}
+
+        component_keys = [
+            "evaluator",
+            "handoff_router",
+            "modules",
+            "temporal_activity_config",
+        ]
+        callable_keys = [
+            "description_callable",
+            "input_callable",
+            "output_callable",
+        ]
+        tool_key = "tools"
+
+        for key, value in data.items():
+            if key in component_keys and value is not None:
+                component_configs[key] = value
+            elif key in callable_keys and value is not None:
+                callable_configs[key] = value
+            elif key == tool_key and value is not None:
+                tool_config = value  # Expecting a list of names
+            elif key not in component_keys + callable_keys + [
+                tool_key
+            ]:  # Avoid double adding
+                agent_data[key] = value
+            # else: ignore keys that are None or already handled
+
+        # --- Deserialize Base Agent ---
+        # Ensure required fields like 'name' are present if needed by __init__
+        if "name" not in agent_data:
             raise ValueError(
-                f"Failed to initialize agent '{agent_name}' from dict: {e}"
-            ) from e
+                "Agent data must include a 'name' field for deserialization."
+            )
+        agent_name_log = agent_data["name"]  # For logging
+        logger.info(f"Deserializing base agent data for '{agent_name_log}'")
 
-        # --- Deserialize and Attach Components ---
+        # Pydantic should handle base fields based on type hints in __init__
+        agent = cls(**agent_data)
+        logger.debug(f"Base agent '{agent.name}' instantiated.")
+
+        # --- Deserialize Components ---
+        logger.debug(f"Deserializing components for '{agent.name}'")
         # Evaluator
-        if evaluator_data:
+        if "evaluator" in component_configs:
             try:
-                logger.debug(
-                    f"Deserializing evaluator for agent '{agent_name}'"
-                )
                 agent.evaluator = deserialize_component(
-                    evaluator_data, FlockEvaluator
+                    component_configs["evaluator"], FlockEvaluator
                 )
-                if agent.evaluator is None:
-                    raise ValueError("deserialize_component returned None")
-                logger.debug(
-                    f"Deserialized evaluator '{agent.evaluator.name}' of type '{evaluator_data.get('type')}' for agent '{agent_name}'"
-                )
+                logger.debug(f"Deserialized evaluator for '{agent.name}'")
             except Exception as e:
                 logger.error(
-                    f"Failed to deserialize evaluator for agent '{agent_name}': {e}",
+                    f"Failed to deserialize evaluator for '{agent.name}': {e}",
                     exc_info=True,
                 )
-                # Decide: raise error or continue without evaluator?
-                # raise ValueError(f"Failed to deserialize evaluator for agent '{agent_name}': {e}") from e
 
-        # Router
-        if router_data:
+        # Handoff Router
+        if "handoff_router" in component_configs:
             try:
-                logger.debug(f"Deserializing router for agent '{agent_name}'")
                 agent.handoff_router = deserialize_component(
-                    router_data, FlockRouter
+                    component_configs["handoff_router"], FlockRouter
                 )
-                if agent.handoff_router is None:
-                    raise ValueError("deserialize_component returned None")
-                logger.debug(
-                    f"Deserialized router '{agent.handoff_router.name}' of type '{router_data.get('type')}' for agent '{agent_name}'"
-                )
+                logger.debug(f"Deserialized handoff_router for '{agent.name}'")
             except Exception as e:
                 logger.error(
-                    f"Failed to deserialize router for agent '{agent_name}': {e}",
+                    f"Failed to deserialize handoff_router for '{agent.name}': {e}",
                     exc_info=True,
                 )
-                # Decide: raise error or continue without router?
 
         # Modules
-        if modules_data:
-            agent.modules = {}  # Ensure it's initialized
-            logger.debug(
-                f"Deserializing {len(modules_data)} modules for agent '{agent_name}'"
-            )
-            for name, module_data in modules_data.items():
+        if "modules" in component_configs:
+            agent.modules = {}  # Initialize
+            for module_name, module_data in component_configs[
+                "modules"
+            ].items():
                 try:
-                    logger.debug(
-                        f"Deserializing module '{name}' of type '{module_data.get('type')}' for agent '{agent_name}'"
-                    )
                     module_instance = deserialize_component(
                         module_data, FlockModule
                     )
                     if module_instance:
-                        # Ensure instance name matches key if possible
-                        module_instance.name = module_data.get("name", name)
-                        agent.add_module(
-                            module_instance
-                        )  # Use add_module for consistency
+                        # Use add_module for potential logic within it
+                        agent.add_module(module_instance)
                         logger.debug(
-                            f"Successfully added module '{name}' to agent '{agent_name}'"
+                            f"Deserialized and added module '{module_name}' for '{agent.name}'"
                         )
-                    else:
-                        raise ValueError("deserialize_component returned None")
                 except Exception as e:
                     logger.error(
-                        f"Failed to deserialize module '{name}' for agent '{agent_name}': {e}",
+                        f"Failed to deserialize module '{module_name}' for '{agent.name}': {e}",
                         exc_info=True,
                     )
-                    # Decide: skip module or raise error?
+
+        # Temporal Activity Config
+        if "temporal_activity_config" in component_configs:
+            try:
+                agent.temporal_activity_config = TemporalActivityConfig(
+                    **component_configs["temporal_activity_config"]
+                )
+                logger.debug(
+                    f"Deserialized temporal_activity_config for '{agent.name}'"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to deserialize temporal_activity_config for '{agent.name}': {e}",
+                    exc_info=True,
+                )
+                agent.temporal_activity_config = None
 
         # --- Deserialize Tools ---
         agent.tools = []  # Initialize tools list
-        if tools_data:
-            # Get component registry to look up function imports
-            registry = get_registry()
-            components = getattr(registry, "_callables", {})
+        if tool_config:
             logger.debug(
-                f"Deserializing {len(tools_data)} tools for agent '{agent_name}'"
+                f"Deserializing {len(tool_config)} tools for '{agent.name}'"
             )
-            logger.debug(
-                f"Available callables in registry: {list(components.keys())}"
-            )
-
-            for tool_name in tools_data:
+            # Use get_callable to find each tool
+            for tool_name_or_path in tool_config:
                 try:
-                    logger.debug(f"Looking for tool '{tool_name}' in registry")
-                    # First try to lookup by simple name in the registry's callables
-                    found = False
-                    for path_str, func in components.items():
-                        if (
-                            path_str.endswith("." + tool_name)
-                            or path_str == tool_name
-                        ):
-                            agent.tools.append(func)
-                            found = True
-                            logger.info(
-                                f"Found tool '{tool_name}' via path '{path_str}' for agent '{agent_name}'"
-                            )
-                            break
-
-                    # If not found by simple name, try manual import
-                    if not found:
+                    found_tool = registry.get_callable(tool_name_or_path)
+                    if found_tool and callable(found_tool):
+                        agent.tools.append(found_tool)
                         logger.debug(
-                            f"Attempting to import tool '{tool_name}' from modules"
+                            f"Resolved and added tool '{tool_name_or_path}' for agent '{agent.name}'"
                         )
-                        # Check in relevant modules (could be customized based on project structure)
-                        import __main__
-
-                        if hasattr(__main__, tool_name):
-                            agent.tools.append(getattr(__main__, tool_name))
-                            found = True
-                            logger.info(
-                                f"Found tool '{tool_name}' in __main__ module for agent '{agent_name}'"
-                            )
-
-                    if not found:
+                    else:
+                        # Should not happen if get_callable returns successfully but just in case
                         logger.warning(
-                            f"Could not find tool '{tool_name}' for agent '{agent_name}'"
+                            f"Registry returned non-callable for tool '{tool_name_or_path}' for agent '{agent.name}'. Skipping."
                         )
+                except (
+                    ValueError
+                ) as e:  # get_callable raises ValueError if not found/ambiguous
+                    logger.warning(
+                        f"Could not resolve tool '{tool_name_or_path}' for agent '{agent.name}': {e}. Skipping."
+                    )
                 except Exception as e:
                     logger.error(
-                        f"Error adding tool '{tool_name}' to agent '{agent_name}': {e}",
+                        f"Unexpected error resolving tool '{tool_name_or_path}' for agent '{agent.name}': {e}. Skipping.",
                         exc_info=True,
                     )
 
-        if description_callable:
-            logger.debug(
-                f"Deserializing description callable '{description_callable}' for agent '{agent_name}'"
-            )
-            agent.description = components[description_callable]
+        # --- Deserialize Callables ---
+        logger.debug(f"Deserializing callable fields for '{agent.name}'")
+        # available_callables = registry.get_all_callables() # Incorrect
 
-        if input_callable:
-            logger.debug(
-                f"Deserializing input callable '{input_callable}' for agent '{agent_name}'"
-            )
-            agent.input = components[input_callable]
+        def resolve_and_assign(field_name: str, callable_key: str):
+            if callable_key in callable_configs:
+                callable_name = callable_configs[callable_key]
+                try:
+                    # Use get_callable to find the signature function
+                    found_callable = registry.get_callable(callable_name)
+                    if found_callable and callable(found_callable):
+                        setattr(agent, field_name, found_callable)
+                        logger.debug(
+                            f"Resolved callable '{callable_name}' for field '{field_name}' on agent '{agent.name}'"
+                        )
+                    else:
+                        logger.warning(
+                            f"Registry returned non-callable for name '{callable_name}' for field '{field_name}' on agent '{agent.name}'. Field remains default."
+                        )
+                except (
+                    ValueError
+                ) as e:  # get_callable raises ValueError if not found/ambiguous
+                    logger.warning(
+                        f"Could not resolve callable '{callable_name}' in registry for field '{field_name}' on agent '{agent.name}': {e}. Field remains default."
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Unexpected error resolving callable '{callable_name}' for field '{field_name}' on agent '{agent.name}': {e}. Field remains default.",
+                        exc_info=True,
+                    )
+            # Else: key not present, field retains its default value from __init__
 
-        if output_callable:
-            logger.debug(
-                f"Deserializing output callable '{output_callable}' for agent '{agent_name}'"
-            )
-            agent.output = components[output_callable]
+        resolve_and_assign("description", "description_callable")
+        resolve_and_assign("input", "input_callable")
+        resolve_and_assign("output", "output_callable")
 
-        logger.info(
-            f"Successfully deserialized agent '{agent_name}' with {len(agent.modules)} modules and {len(agent.tools)} tools"
-        )
+        logger.info(f"Successfully deserialized agent '{agent.name}'.")
         return agent
 
     # --- Pydantic v2 Configuration ---

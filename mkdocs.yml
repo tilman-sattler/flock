@@ -98,6 +98,7 @@ nav:
   - Guides:
       - Overview: guides/index.md
       - Chaining Agents: guides/chaining-agents.md
+      - Configuring Temporal Execution: guides/temporal-configuration.md
     # Add later: Custom Tools, Using Memory, Advanced Workflows
   - Deployment:
       - Overview: deployment/index.md

@@ -14,6 +14,7 @@ from flock.modules.performance.metrics_module import (
     MetricsModule,
     MetricsModuleConfig,
 )
+from flock.workflow.temporal_config import TemporalActivityConfig
 
 
 class FlockFactory:
@@ -39,6 +40,7 @@ class FlockFactory:
         write_to_file: bool = False,
         stream: bool = False,
         include_thought_process: bool = False,
+        temporal_activity_config: TemporalActivityConfig | None = None,
     ) -> FlockAgent:
         """Creates a default FlockAgent.
 
@@ -69,6 +71,7 @@ class FlockFactory:
             evaluator=evaluator,
             write_to_file=write_to_file,
             wait_for_input=wait_for_input,
+            temporal_activity_config=temporal_activity_config,
         )
         output_config = OutputModuleConfig(
             render_table=enable_rich_tables,
