@@ -3,6 +3,8 @@
 import asyncio  # Import asyncio
 from typing import TYPE_CHECKING, Any
 
+from temporalio.worker import Worker  # Import Worker
+
 if TYPE_CHECKING:
     from flock.core.flock import Flock  # Import Flock for type hinting
 
@@ -50,23 +52,34 @@ async def run_temporal_workflow(
         logger.debug("Creating Temporal client")
         flock_client = await create_temporal_client()
 
+        # Determine if we need to manage an in-process worker
+        start_worker_locally = flock_instance.temporal_start_in_process_worker
+
         # Setup worker instance
-        logger.info(
-            f"Setting up Temporal worker for task queue '{wf_config.task_queue}'"
-        )
-        worker = await setup_worker(
-            flock_client,  # Pass the client
-            wf_config.task_queue,  # Pass the task queue
-            FlockWorkflow,
-            [execute_single_agent, determine_next_agent],
-        )
+        worker: Worker | None = None
+        worker_task: asyncio.Task | None = None
 
-        # Run the worker in the background
-        worker_task = asyncio.create_task(worker.run())
-        logger.info("Temporal worker started in background.")
+        if start_worker_locally:
+            logger.info(
+                f"Setting up temporary in-process worker for task queue '{wf_config.task_queue}'"
+            )
+            worker = await setup_worker(
+                flock_client,  # Pass the client
+                wf_config.task_queue,  # Pass the task queue
+                FlockWorkflow,
+                [execute_single_agent, determine_next_agent],
+            )
 
-        # Allow worker time to start polling (heuristic for local testing)
-        await asyncio.sleep(2)
+            # Run the worker in the background
+            worker_task = asyncio.create_task(worker.run())
+            logger.info("Temporal worker started in background.")
+
+            # Allow worker time to start polling (heuristic for local testing)
+            await asyncio.sleep(2)
+        else:
+            logger.info(
+                "Skipping in-process worker startup. Assuming dedicated workers are running."
+            )
 
         try:
             workflow_id = context.get_variable(FLOCK_RUN_ID)
@@ -125,7 +138,12 @@ async def run_temporal_workflow(
             raise e  # Re-raise the exception after logging
         finally:
             # Ensure worker is shut down regardless of success or failure
-            if worker_task and not worker_task.done():
+            if (
+                start_worker_locally
+                and worker
+                and worker_task
+                and not worker_task.done()
+            ):
                 logger.info("Shutting down temporal worker...")
                 await worker.shutdown()  # Await the shutdown coroutine
                 try:

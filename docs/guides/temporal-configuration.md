@@ -212,3 +212,111 @@ if __name__ == "__main__":
 
 - Learn more about Temporal's concepts like [Task Queues](https://docs.temporal.io/concepts/what-is-a-task-queue) and [Retries](https://docs.temporal.io/concepts/what-is-a-retry-policy).
 - Explore how to run [Temporal Workers](https://docs.temporal.io/application-development/foundations#worker) to process tasks from your queues. 
+
+## Running Temporal Workers (Production Requirement)
+
+The examples above show how to configure Temporal settings declaratively. However, for Temporal workflows to actually execute, you need **Worker Processes** running, listening on the specified task queues.
+
+**Development vs. Production:**
+
+- **Current Behavior (Development/Testing):** For convenience during local development and testing, when you call `flock.run_async` with `enable_temporal=True`, the Flock framework *currently* starts a temporary, in-process worker in the background. This allows simple scripts like the examples above to run without needing a separate process. **This is NOT intended for production use.**
+- **Production Requirement:** In a real deployment (staging, production), you **must** run dedicated, long-running worker processes separately from your application that calls `flock.run_async`. These workers are responsible for picking up tasks from the queue and executing your workflow and activity code.
+
+**Why Dedicated Workers?**
+
+- **Scalability:** You can run multiple worker processes (even on different machines) listening to the same task queue to handle higher loads.
+- **Reliability:** Workers can be restarted independently of your main application.
+- **Resource Management:** You can run workers on machines with specific resources (e.g., GPUs for certain agents) by having them listen on specific task queues (like `gpu-workers-queue` configured in `TemporalActivityConfig`).
+- **Isolation:** Keeps the workflow execution logic separate from your application logic.
+
+**Creating a Worker Script:**
+
+You need to create a separate Python script (e.g., `run_flock_worker.py`) to run your workers. Here's a basic example:
+
+```python
+# run_flock_worker.py
+import asyncio
+import logging # Use standard logging for the worker process
+
+from temporalio.client import Client
+from temporalio.worker import Worker
+
+# Import your Flock workflow and activities
+# Ensure these imports work in the context where you run the worker
+from flock.workflow.flock_workflow import FlockWorkflow
+from flock.workflow.agent_execution_activity import (
+    execute_single_agent,
+    determine_next_agent,
+)
+
+# --- Configuration ---
+# Make these configurable via environment variables, CLI args, or a config file
+TEMPORAL_SERVICE_URL = "localhost:7233" 
+NAMESPACE = "default"
+# The task queue(s) this worker process will listen on.
+# Must match the queue(s) defined in your Flock/Agent Temporal configurations.
+TASK_QUEUES = ["flock-queue", "flock-example-queue", "my-custom-queue", "gpu-workers-queue"] 
+
+# Configure logging for the worker process
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger(__name__)
+
+async def run_worker():
+    log.info(f"Connecting to Temporal at {TEMPORAL_SERVICE_URL} in namespace '{NAMESPACE}'")
+    client = await Client.connect(TEMPORAL_SERVICE_URL, namespace=NAMESPACE)
+    log.info(f"Client connected successfully.")
+
+    activities_to_register = [execute_single_agent, determine_next_agent]
+    workflows_to_register = [FlockWorkflow]
+
+    # Create and run workers for each specified task queue
+    # You might run multiple instances of this script for different queues
+    # or handle multiple queues in one worker if resources allow.
+    worker_tasks = []
+    for queue in TASK_QUEUES:
+        log.info(f"Starting worker for task queue: '{queue}'")
+        worker = Worker(
+            client,
+            task_queue=queue,
+            workflows=workflows_to_register,
+            activities=activities_to_register,
+            # identity="my-worker-process-1" # Optional: Set a worker identity
+        )
+        worker_tasks.append(asyncio.create_task(worker.run()))
+        log.info(f"Worker for task queue '{queue}' started.")
+
+    log.info(f"All workers started. Running indefinitely...")
+    # Keep running until manually stopped or an error occurs
+    await asyncio.gather(*worker_tasks)
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(run_worker())
+    except KeyboardInterrupt:
+        log.info("Worker process interrupted. Shutting down.")
+    except Exception as e:
+        log.exception(f"Worker process failed: {e}")
+
+**Running the Worker:**
+
+1.  Save the code above as `run_flock_worker.py` (or similar).
+2.  Customize `TEMPORAL_SERVICE_URL`, `NAMESPACE`, and especially `TASK_QUEUES` to match your environment and the queues you configured in your `Flock` and `FlockAgent` objects.
+3.  Run the worker from your terminal: `python run_flock_worker.py`
+4.  You typically keep this worker process running indefinitely using a process manager like `systemd`, `supervisor`, or within a container orchestration system (like Kubernetes).
+
+**Important Note on Automatic Worker Startup:**
+
+As mentioned, `flock.run_async` currently starts a temporary worker for convenience if `enable_temporal=True` and the `temporal_start_in_process_worker` flag on your `Flock` instance is `True` (which is the default).
+
+When you are running your own dedicated workers (like the script above), this temporary worker becomes redundant. To prevent this, you should set `temporal_start_in_process_worker=False` when initializing your `Flock` instance:
+
+```python
+my_prod_flock = Flock(
+    # ... other config ...
+    enable_temporal=True,
+    temporal_config=workflow_config, # Your production temporal config
+    temporal_start_in_process_worker=False # Disable automatic worker
+)
+```
+
+Focus on ensuring your dedicated workers are correctly configured and running for production deployments. 

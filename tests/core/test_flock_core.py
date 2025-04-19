@@ -378,6 +378,54 @@ async def test_run_async_temporal_passes_memo(basic_flock, simple_agent, mocker)
     # Verify context was initialized
     mock_init_context.assert_called_once()
 
+@pytest.mark.asyncio
+async def test_run_async_temporal_no_in_process_worker(basic_flock, simple_agent, mocker):
+    """Test that the in-process worker is NOT started if flag is False."""
+    # Mock the executor and the setup_worker function it calls
+    mock_temporal_exec = mocker.patch('flock.core.flock.run_temporal_workflow', new_callable=AsyncMock)
+    mock_setup_worker = mocker.patch('flock.core.execution.temporal_executor.setup_worker') # Patch setup_worker in executor
+    mock_create_task = mocker.patch('asyncio.create_task') # To check if worker.run() task is created
+    
+    # Configure Flock to disable in-process worker
+    basic_flock.enable_temporal = True
+    basic_flock.temporal_start_in_process_worker = False
+    basic_flock.add_agent(simple_agent)
+    
+    # Mock the return value of the executor itself (since setup_worker won't be called to run it)
+    # Need to actually call the real executor but mock deeper dependencies
+    
+    # --- Let's adjust the mocking strategy --- 
+    # We need to call the *real* run_temporal_workflow, but mock its internal call to setup_worker
+    # So, don't mock run_temporal_workflow itself. Patch setup_worker and start_workflow.
+    
+    mocker.patch('flock.core.flock.run_temporal_workflow', wraps=run_temporal_workflow) # Use wraps if needed, but let's patch deeper
+    
+    mock_setup_worker = mocker.patch('flock.core.execution.temporal_executor.setup_worker', new_callable=AsyncMock)
+    # Mock the client and start_workflow to prevent actual Temporal calls
+    mock_client = MagicMock()
+    mock_handle = MagicMock()
+    mock_handle.result = AsyncMock(return_value={"result": "no_worker_test"})
+    mock_client.start_workflow = AsyncMock(return_value=mock_handle)
+    mocker.patch('flock.core.execution.temporal_executor.create_temporal_client', new_callable=AsyncMock, return_value=mock_client)
+    
+    # Reconfigure Flock
+    flock_no_worker = Flock(
+        name="flock_no_worker",
+        enable_temporal=True,
+        temporal_start_in_process_worker=False, # Key setting
+        agents=[simple_agent],
+        enable_logging=False,
+        show_flock_banner=False
+    )
+    
+    # Run
+    await flock_no_worker.run_async(start_agent="agent1", input={"query": "test"}, box_result=False)
+    
+    # Assert: setup_worker should NOT have been called
+    mock_setup_worker.assert_not_awaited()
+    # Assert: start_workflow WAS called (the workflow execution should still be attempted)
+    mock_client.start_workflow.assert_awaited_once()
+
 # --- Serialization/Dict Tests (Placeholders - Add to serialization tests) ---
 
 # TODO: Add tests in tests/serialization/ to verify TemporalWorkflowConfig 

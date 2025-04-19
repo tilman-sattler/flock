@@ -108,6 +108,11 @@ class Flock(BaseModel, Serializable):
         default=None,
         description="Optional Temporal settings specific to the workflow execution for this Flock.",
     )
+    # --- Temporal Dev/Test Setting ---
+    temporal_start_in_process_worker: bool = Field(
+        default=True,
+        description="If True (default) and enable_temporal=True, start a temporary in-process worker for development/testing convenience. Set to False when using dedicated workers.",
+    )
     # Internal agent storage - not part of the Pydantic model for direct serialization
     _agents: dict[str, FlockAgent]
     _start_agent_name: str | None = None  # For potential pre-configuration
@@ -129,6 +134,7 @@ class Flock(BaseModel, Serializable):
         enable_logging: bool | list[str] = False,
         agents: list[FlockAgent] | None = None,
         temporal_config: TemporalWorkflowConfig | None = None,
+        temporal_start_in_process_worker: bool = True,
         **kwargs,
     ):
         """Initialize the Flock orchestrator."""
@@ -144,6 +150,7 @@ class Flock(BaseModel, Serializable):
             enable_logging=enable_logging,
             show_flock_banner=show_flock_banner,
             temporal_config=temporal_config,
+            temporal_start_in_process_worker=temporal_start_in_process_worker,
             **kwargs,
         )
 

@@ -155,13 +155,39 @@ if __name__ == "__main__":
 
 ## 🐤 New in Flock 0.4.0 `Magpie` 🐤
 
-### REST API - Deploy Flock Agents as REST API Endpoints
+Version 0.4.0 brings significant enhancements focused on usability, deployment, and robustness:
 
-### Web UI - Test Flock Agents in the Browser
 
-### CLI Tool - Manage Flock Agents via the Command Line
+### 🚀 REST API - Deploy Flock Agents as REST API Endpoints
 
-### Serialization - Share, Deploy, and Run Flock Agents by human readable yaml files
+Easily deploy your Flock agents as scalable REST API endpoints. Interact with your agent workflows via standard HTTP requests.
+
+### 🖥️ Web UI - Test Flock Agents in the Browser
+
+Test and interact with your Flock agents directly in your browser through an integrated web interface.
+
+### ⌨️ CLI Tool - Manage Flock Agents via the Command Line
+
+Manage Flock configurations, run agents, and inspect results directly from your command line.
+
+### 💾 Enhanced Serialization - Share, Deploy, and Run Flock Agents by human readable yaml files
+
+Define and share entire Flock configurations, including agents and components, using human-readable YAML files. Load flocks directly from these files for easy deployment and versioning.
+
+### ⏱️ Robust Temporal Integration
+
+Flock 0.4.0 introduces first-class support for Temporal.io, enabling you to build truly production-grade, reliable, and scalable agent workflows. Move beyond simple local execution and leverage Temporal's power for:
+
+*   **Fault Tolerance:** Workflows automatically resume from the last successful step after failures.
+*   **Retries:** Configure automatic retries for activities (like LLM calls or tool usage) with exponential backoff.
+*   **Scalability:** Distribute workflow and activity execution across multiple worker processes using Task Queues.
+*   **Observability:** Gain deep insights into workflow execution history via the Temporal UI.
+
+Flock makes this easy with:
+
+*   **Declarative Configuration:** Define Temporal timeouts, retry policies, and task queues directly within your `Flock` and `FlockAgent` configurations (YAML or Python).
+*   **Correct Patterns:** Uses Temporal's recommended granular activity execution for better control and visibility.
+*   **Clear Worker Separation:** Provides guidance and flags for running dedicated Temporal workers, separating development convenience from production best practices.
 
 ### ✨ Utility: @flockclass Hydrator
 
