@@ -19,7 +19,6 @@ if TYPE_CHECKING:
 
 from opentelemetry import trace
 from pydantic import BaseModel, Field
-from rich.console import Console
 
 # Core Flock components (ensure these are importable)
 from flock.core.context.context import FlockContext
@@ -37,8 +36,6 @@ from flock.core.serialization.serialization_utils import (
     deserialize_component,
     serialize_item,
 )
-
-console = Console()
 
 logger = get_logger("agent")
 tracer = trace.get_tracer(__name__)
@@ -230,8 +227,7 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
 
                 if self.write_to_file:
                     self._save_output(self.name, result)
-                if self.wait_for_input:
-                    console.input(prompt="Press Enter to continue...")
+
             except Exception as module_error:
                 logger.error(
                     "Error during terminate",

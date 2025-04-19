@@ -17,7 +17,14 @@ from typing import (
 
 # Third-party imports
 from box import Box
-from datasets import Dataset
+from temporalio import workflow
+
+with workflow.unsafe.imports_passed_through():
+    from datasets import Dataset
+
+    from flock.core.execution.local_executor import (
+        run_local_workflow,
+    )
 from opentelemetry import trace
 from opentelemetry.baggage import get_baggage, set_baggage
 from pandas import DataFrame
@@ -27,7 +34,6 @@ from pydantic import BaseModel, Field
 from flock.config import DEFAULT_MODEL, TELEMETRY
 from flock.core.context.context import FlockContext
 from flock.core.context.context_manager import initialize_context
-from flock.core.execution.local_executor import run_local_workflow
 from flock.core.execution.temporal_executor import run_temporal_workflow
 from flock.core.flock_evaluator import FlockEvaluator
 from flock.core.logging.logging import LOGGERS, get_logger, get_module_loggers
@@ -59,9 +65,9 @@ FlockRegistry = get_registry()  # Get the registry instance
 # Define TypeVar for generic class methods like from_dict
 T = TypeVar("T", bound="Flock")
 
-from rich.traceback import install
+# from rich.traceback import install
 
-install(show_locals=True)
+# install(show_locals=True)
 
 
 class Flock(BaseModel, Serializable):
