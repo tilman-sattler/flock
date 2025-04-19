@@ -1,5 +1,4 @@
 import asyncio
-import inspect
 import traceback
 import uuid
 
@@ -13,14 +12,15 @@ async def create_temporal_client() -> Client:
 
 
 async def setup_worker(workflow, activity) -> Client:
+    """Setup the worker and return the result of the worker.run() call."""
     try:
         # debug
-        print("workflow =", workflow)
-        print("isclass     :", inspect.isclass(workflow))
-        print(
-            "has _defn   :",
-            hasattr(workflow, "_temporalio_workflow_definition"),
-        )
+        # print("workflow =", workflow)
+        # print("isclass     :", inspect.isclass(workflow))
+        # print(
+        #     "has _defn   :",
+        #     hasattr(workflow, "_temporalio_workflow_definition"),
+        # )
         worker_client = await create_temporal_client()
         worker = Worker(
             worker_client,
@@ -28,8 +28,9 @@ async def setup_worker(workflow, activity) -> Client:
             workflows=[workflow],
             activities=[activity],
         )
-        asyncio.create_task(worker.run())
+        result = asyncio.create_task(worker.run())
         await asyncio.sleep(1)
+        return result
     except Exception:
         print("\n=== Worker construction failed ===")
         traceback.print_exc()
