@@ -1,35 +1,31 @@
 """Flock package initialization."""
 
-from rich.panel import Panel
-
-from flock.cli.config import init_config_file, load_config_file
-from flock.cli.constants import (
-    CLI_CFG_FILE,
-    CLI_EXIT,
-    CLI_NOTES,
-    CLI_REGISTRY_MANAGEMENT,
-    CLI_THEME_BUILDER,
-)
-from flock.cli.load_release_notes import load_release_notes
-from flock.cli.settings import settings_editor
-from flock.core.logging.formatters.theme_builder import theme_builder
-
 
 def main():
     """Main function."""
     import questionary
     from rich.console import Console
+    from rich.panel import Panel
 
+    from flock.cli.config import init_config_file, load_config_file
     from flock.cli.constants import (
+        CLI_CFG_FILE,
         CLI_CREATE_AGENT,
         CLI_CREATE_FLOCK,
+        CLI_EXIT,
         CLI_LOAD_AGENT,
         CLI_LOAD_EXAMPLE,
         CLI_LOAD_FLOCK,
+        CLI_NOTES,
+        CLI_REGISTRY_MANAGEMENT,
         CLI_SETTINGS,
         CLI_START_WEB_SERVER,
+        CLI_THEME_BUILDER,
     )
     from flock.cli.load_flock import load_flock
+    from flock.cli.load_release_notes import load_release_notes
+    from flock.cli.settings import settings_editor
+    from flock.core.logging.formatters.theme_builder import theme_builder
     from flock.core.util.cli_helper import init_console
 
     console = Console()

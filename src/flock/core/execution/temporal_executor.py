@@ -7,7 +7,6 @@ from flock.workflow.activities import (
     run_agent,  # Activity function used in Temporal
 )
 from flock.workflow.temporal_setup import create_temporal_client, setup_worker
-from flock.workflow.workflow import FlockWorkflow  # Your workflow class
 
 logger = get_logger("flock")
 
@@ -25,25 +24,34 @@ async def run_temporal_workflow(
     Returns:
         A dictionary containing the workflow result.
     """
-    logger.info("Setting up Temporal workflow")
-    await setup_worker(workflow=FlockWorkflow, activity=run_agent)
-    logger.debug("Creating Temporal client")
-    flock_client = await create_temporal_client()
-    workflow_id = context.get_variable(FLOCK_RUN_ID)
-    logger.info("Executing Temporal workflow", workflow_id=workflow_id)
-    result = await flock_client.execute_workflow(
-        FlockWorkflow.run,
-        context.to_dict(),
-        id=workflow_id,
-        task_queue="flock-queue",
-    )
+    try:
+        from flock.workflow.flock_workflow import (
+            FlockWorkflow,  # Your workflow class
+        )
 
-    agent_name = context.get_variable("FLOCK_CURRENT_AGENT")
-    logger.debug("Formatting Temporal result", agent=agent_name)
+        logger.info("Setting up Temporal workflow")
+        await setup_worker(workflow=FlockWorkflow, activity=run_agent)
+        logger.debug("Creating Temporal client")
+        flock_client = await create_temporal_client()
+        workflow_id = context.get_variable(FLOCK_RUN_ID)
+        logger.info("Executing Temporal workflow", workflow_id=workflow_id)
+        context_dict = context.model_dump()
+        result = await flock_client.execute_workflow(
+            FlockWorkflow.run,
+            context_dict,
+            id=workflow_id,
+            task_queue="flock-queue",
+        )
 
-    if box_result:
-        from box import Box
+        agent_name = context.get_variable("FLOCK_CURRENT_AGENT")
+        logger.debug("Formatting Temporal result", agent=agent_name)
 
-        logger.debug("Boxing Temporal result")
-        return Box(result)
-    return result
+        if box_result:
+            from box import Box
+
+            logger.debug("Boxing Temporal result")
+            return Box(result)
+        return result
+    except Exception as e:
+        logger.error("Error executing Temporal workflow", error=e)
+        raise e

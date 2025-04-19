@@ -24,6 +24,9 @@ class MetricPoint(BaseModel):
     value: int | float | str
     tags: dict[str, str] = {}
 
+    class Config:
+        arbitrary_types_allowed = True
+
 
 class MetricsModuleConfig(FlockModuleConfig):
     """Configuration for performance metrics collection."""

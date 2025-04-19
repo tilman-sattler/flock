@@ -1,14 +1,9 @@
 from importlib.metadata import PackageNotFoundError, version
 
-from rich.console import Console
-from rich.syntax import Text
-
 try:
     __version__ = version("flock-core")
 except PackageNotFoundError:
     __version__ = "0.2.0"
-
-console = Console()
 
 
 def display_hummingbird():
@@ -45,6 +40,10 @@ def display_hummingbird():
 
 def init_console(clear_screen: bool = True, show_banner: bool = True):
     """Display the Flock banner."""
+    from rich.console import Console
+    from rich.syntax import Text
+
+    console = Console()
     banner_text = Text(
         f"""
 🦆    🐓     🐤     🐧
@@ -70,6 +69,10 @@ def init_console(clear_screen: bool = True, show_banner: bool = True):
 
 def display_banner_no_version():
     """Display the Flock banner."""
+    from rich.console import Console
+    from rich.syntax import Text
+
+    console = Console()
     banner_text = Text(
         """
 🦆    🐓     🐤     🐧

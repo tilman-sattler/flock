@@ -1,9 +1,12 @@
 from collections.abc import Generator
 from typing import Any
 
-import dspy
+from temporalio import workflow
+
+with workflow.unsafe.imports_passed_through():
+    import dspy
+
 from pydantic import Field, PrivateAttr
-from rich.console import Console
 
 from flock.core.flock_agent import FlockAgent
 from flock.core.flock_evaluator import FlockEvaluator, FlockEvaluatorConfig
@@ -11,8 +14,6 @@ from flock.core.flock_registry import flock_component
 from flock.core.logging.logging import get_logger
 from flock.core.mixin.dspy_integration import DSPyIntegrationMixin
 from flock.core.mixin.prompt_parser import PromptParserMixin
-
-console = Console()
 
 logger = get_logger("evaluators.declarative")
 
@@ -56,6 +57,9 @@ class DeclarativeEvaluator(
         """Evaluate using DSPy, with optional asynchronous streaming."""
         # --- Setup Signature and LM ---
         try:
+            from rich.console import Console
+
+            console = Console()
             _dspy_signature = self.create_dspy_signature_class(
                 agent.name,
                 agent.description,
