@@ -39,6 +39,7 @@ from flock.core.flock_evaluator import FlockEvaluator
 from flock.core.logging.logging import LOGGERS, get_logger, get_module_loggers
 from flock.core.serialization.serializable import Serializable
 from flock.core.util.cli_helper import init_console
+from flock.workflow.temporal_config import TemporalWorkflowConfig
 
 # Import FlockAgent using TYPE_CHECKING to avoid circular import at runtime
 if TYPE_CHECKING:
@@ -102,6 +103,11 @@ class Flock(BaseModel, Serializable):
         default=True,
         description="If True, show the Flock banner on console interactions.",
     )
+    # --- Temporal Configuration (Optional) ---
+    temporal_config: TemporalWorkflowConfig | None = Field(
+        default=None,
+        description="Optional Temporal settings specific to the workflow execution for this Flock.",
+    )
     # Internal agent storage - not part of the Pydantic model for direct serialization
     _agents: dict[str, FlockAgent]
     _start_agent_name: str | None = None  # For potential pre-configuration
@@ -122,6 +128,7 @@ class Flock(BaseModel, Serializable):
         enable_temporal: bool = False,
         enable_logging: bool | list[str] = False,
         agents: list[FlockAgent] | None = None,
+        temporal_config: TemporalWorkflowConfig | None = None,
         **kwargs,
     ):
         """Initialize the Flock orchestrator."""
@@ -136,6 +143,7 @@ class Flock(BaseModel, Serializable):
             enable_temporal=enable_temporal,
             enable_logging=enable_logging,
             show_flock_banner=show_flock_banner,
+            temporal_config=temporal_config,
             **kwargs,
         )
 
@@ -348,7 +356,17 @@ class Flock(BaseModel, Serializable):
 
             # Check if start_agent is in agents
             if start_agent_name not in self._agents:
-                raise ValueError(f"Start agent '{start_agent_name}' not found.")
+                # Try loading from registry if not found locally yet
+                reg_agent = FlockRegistry.get_agent(start_agent_name)
+                if reg_agent:
+                    self.add_agent(reg_agent)
+                    logger.info(
+                        f"Loaded start agent '{start_agent_name}' from registry."
+                    )
+                else:
+                    raise ValueError(
+                        f"Start agent '{start_agent_name}' not found locally or in registry."
+                    )
 
             run_input = input if input is not None else self._start_input
             effective_run_id = run_id or f"flockrun_{uuid.uuid4().hex[:8]}"
@@ -394,6 +412,15 @@ class Flock(BaseModel, Serializable):
                         agent_data=agent_dict_repr,  # Pass the serialized dict
                     )
 
+                # Add temporal config to context if enabled
+                if self.enable_temporal and self.temporal_config:
+                    # Store the workflow config dict for the executor/workflow to use
+                    # Using a specific key to avoid potential clashes in state
+                    run_context.set_variable(
+                        "flock.temporal_workflow_config",
+                        self.temporal_config.model_dump(mode="json"),
+                    )
+
                 logger.info(
                     "Starting agent execution",
                     agent=start_agent_name,
@@ -406,8 +433,14 @@ class Flock(BaseModel, Serializable):
                         run_context, box_result=False
                     )
                 else:
+                    # Pass the Flock instance itself to the executor
+                    # so it can access the temporal_config directly if needed
+                    # This avoids putting potentially large/complex config objects
+                    # directly into the context state that gets passed around.
                     result = await run_temporal_workflow(
-                        run_context, box_result=False
+                        self,  # Pass the Flock instance
+                        run_context,
+                        box_result=False,
                     )
 
                 span.set_attribute("result.type", str(type(result)))
@@ -668,6 +701,7 @@ class Flock(BaseModel, Serializable):
         # Import locally to prevent circular imports at module level if structure is complex
         from flock.core.serialization.flock_serializer import FlockSerializer
 
+        # Assuming FlockSerializer handles the nested temporal_config serialization
         return FlockSerializer.serialize(self, path_type=path_type)
 
     @classmethod
@@ -676,6 +710,7 @@ class Flock(BaseModel, Serializable):
         # Import locally
         from flock.core.serialization.flock_serializer import FlockSerializer
 
+        # Assuming FlockSerializer handles the nested temporal_config deserialization
         return FlockSerializer.deserialize(cls, data)
 
     # --- Static Method Loader (Delegates to loader module) ---

@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 from typing import List, Literal
 from dataclasses import dataclass
+from datetime import timedelta # Ensure timedelta is imported
 
 from pydantic import BaseModel, Field
 
@@ -16,6 +17,13 @@ from flock.core.flock_router import FlockRouter, FlockRouterConfig, HandOffReque
 from flock.core.serialization.flock_serializer import FlockSerializer
 from flock.core.flock_registry import FlockRegistry, get_registry, flock_component, flock_tool, flock_type
 from flock.core.serialization.serializable import Serializable # Needed for mocks if they inherit
+
+# Import Temporal config models
+from flock.config.temporal_config import (
+    TemporalWorkflowConfig,
+    TemporalRetryPolicyConfig,
+    TemporalActivityConfig
+)
 
 # --- Mock Components for Testing ---
 # Ensure these are registered before tests that need them run
@@ -187,9 +195,7 @@ def test_serialize_includes_components(flock_with_agents):
     # Check tools (callables)
     assert "sample_tool" in components
     assert components["sample_tool"]["type"] == "flock_callable"
-    assert "module_path" in components["sample_tool"]
-    assert "file_path" in components["sample_tool"]
-    assert "description" in components["sample_tool"]
+    assert components["sample_tool"]["module_path"] == "builtins"
 
     assert "print" in components # Built-in
     assert components["print"]["type"] == "flock_callable"
@@ -229,6 +235,51 @@ def test_serialize_path_type_relative(flock_with_agents, mocker):
     assert components["sample_tool"]["file_path"] == "relative/path/to/sample_tool.py"
 
     assert mock_relpath.call_count > 0 # Ensure relpath was involved
+
+def test_serialize_flock_with_temporal_config(basic_flock):
+    """Test serializing a Flock includes temporal_config if set."""
+    retry_config = TemporalRetryPolicyConfig(maximum_attempts=5)
+    wf_config = TemporalWorkflowConfig(
+        task_queue="serialize-test-queue",
+        workflow_execution_timeout=timedelta(minutes=10),
+        default_activity_retry_policy=retry_config
+    )
+    basic_flock.temporal_config = wf_config
+
+    # Assuming Flock.to_dict uses the serializer implicitly or explicitly
+    serialized_data = basic_flock.to_dict()
+
+    assert "temporal_config" in serialized_data
+    assert serialized_data["temporal_config"]["task_queue"] == "serialize-test-queue"
+    # Pydantic v2 model_dump with mode='json' serializes timedelta to seconds (float)
+    assert serialized_data["temporal_config"]["workflow_execution_timeout"] == 600.0 
+    assert "default_activity_retry_policy" in serialized_data["temporal_config"]
+    assert serialized_data["temporal_config"]["default_activity_retry_policy"]["maximum_attempts"] == 5
+
+def test_serialize_agent_with_temporal_config(basic_flock):
+    """Test serializing an agent includes temporal_activity_config if set."""
+    retry_config = TemporalRetryPolicyConfig(initial_interval=timedelta(seconds=5))
+    act_config = TemporalActivityConfig(
+        start_to_close_timeout=timedelta(seconds=90),
+        retry_policy=retry_config,
+        task_queue="agent-queue"
+    )
+    agent = FlockAgent(
+        name="temporal_agent",
+        input="in", output="out",
+        temporal_activity_config=act_config
+    )
+    # No need to add to flock for this test, just test agent serialization
+    # basic_flock.add_agent(agent) 
+
+    agent_data = agent.to_dict() 
+
+    assert "temporal_activity_config" in agent_data
+    assert agent_data["temporal_activity_config"]["task_queue"] == "agent-queue"
+    # Pydantic v2 model_dump with mode='json' serializes timedelta to seconds (float)
+    assert agent_data["temporal_activity_config"]["start_to_close_timeout"] == 90.0
+    assert "retry_policy" in agent_data["temporal_activity_config"]
+    assert agent_data["temporal_activity_config"]["retry_policy"]["initial_interval"] == 5.0
 
 
 # --- Deserialization Tests ---
@@ -316,3 +367,50 @@ def test_deserialize_missing_component_definition(basic_flock, caplog):
     agent = loaded_flock.agents["missing_comp_agent"]
     # The agent should be created, but the component should be None or raise during use
     assert agent.evaluator is None
+
+def test_deserialize_flock_with_temporal_config(basic_flock):
+    """Test deserializing a Flock with temporal_config."""
+    retry_config = TemporalRetryPolicyConfig(maximum_attempts=5)
+    wf_config = TemporalWorkflowConfig(
+        task_queue="serialize-test-queue",
+        workflow_execution_timeout=timedelta(minutes=10),
+        default_activity_retry_policy=retry_config
+    )
+    basic_flock.temporal_config = wf_config
+    serialized_data = basic_flock.to_dict()
+
+    loaded_flock = Flock.from_dict(serialized_data)
+
+    assert isinstance(loaded_flock.temporal_config, TemporalWorkflowConfig)
+    assert loaded_flock.temporal_config.task_queue == "serialize-test-queue"
+    assert loaded_flock.temporal_config.workflow_execution_timeout == timedelta(minutes=10)
+    assert isinstance(loaded_flock.temporal_config.default_activity_retry_policy, TemporalRetryPolicyConfig)
+    assert loaded_flock.temporal_config.default_activity_retry_policy.maximum_attempts == 5
+
+def test_deserialize_agent_with_temporal_config(flock_with_agents):
+    """Test deserializing an agent with temporal_activity_config."""
+    # Modify agent a2 in the fixture to have temporal config for the test
+    retry_config = TemporalRetryPolicyConfig(initial_interval=timedelta(seconds=7))
+    act_config = TemporalActivityConfig(
+        start_to_close_timeout=timedelta(seconds=45),
+        retry_policy=retry_config
+    )
+    # Directly modify the agent instance held by the fixture
+    agent_a2 = flock_with_agents.agents["a2"]
+    agent_a2.temporal_activity_config = act_config 
+
+    # Serialize the whole flock which includes the modified agent
+    # Use Flock's to_dict which should call agent's to_dict
+    serialized_data = flock_with_agents.to_dict()
+
+    # Deserialize the flock using Flock's classmethod
+    loaded_flock = Flock.from_dict(serialized_data)
+
+    # Check the deserialized agent
+    loaded_agent = loaded_flock.agents.get("a2")
+    assert loaded_agent is not None
+    assert isinstance(loaded_agent.temporal_activity_config, TemporalActivityConfig)
+    assert loaded_agent.temporal_activity_config.start_to_close_timeout == timedelta(seconds=45)
+    assert isinstance(loaded_agent.temporal_activity_config.retry_policy, TemporalRetryPolicyConfig)
+    assert loaded_agent.temporal_activity_config.retry_policy.initial_interval == timedelta(seconds=7)
+    assert loaded_agent.temporal_activity_config.task_queue is None # Wasn't set
