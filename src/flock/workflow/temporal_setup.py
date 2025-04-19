@@ -11,7 +11,7 @@ async def create_temporal_client() -> Client:
     return client
 
 
-async def setup_worker(workflow, activity) -> Client:
+async def setup_worker(workflow: type, activities: list) -> Client:
     """Setup the worker and return the result of the worker.run() call."""
     try:
         # debug
@@ -26,7 +26,7 @@ async def setup_worker(workflow, activity) -> Client:
             worker_client,
             task_queue="flock-queue",
             workflows=[workflow],
-            activities=[activity],
+            activities=activities,
         )
         result = asyncio.create_task(worker.run())
         await asyncio.sleep(1)
