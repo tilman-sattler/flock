@@ -22,6 +22,9 @@ from typing import (  # Add TYPE_CHECKING
 
 from pydantic import BaseModel
 
+from flock.core.mcp.mcp_settings import MCPConnectionSettings
+from flock.core.mcp.mcp_types import InitHookCallable
+
 if TYPE_CHECKING:
     from flock.core.flock_agent import (
         FlockAgent,  # Import only for type checking
@@ -58,6 +61,8 @@ class FlockRegistry:
     _instance = None
 
     _agents: dict[str, FlockAgent]
+    _servers: dict[str, MCPConnectionSettings]
+    _mcp_init_hooks: dict[str, InitHookCallable]
     _callables: dict[str, Callable]
     _types: dict[str, type]
     _components: dict[str, type]  # For Module, Evaluator, Router classes
@@ -72,6 +77,8 @@ class FlockRegistry:
     def _initialize(self):
         """Initialize the internal dictionaries."""
         self._agents = {}
+        self._servers = {}
+        self._mcp_init_hooks = {}
         self._callables = {}
         self._types = {}
         self._components = {}
@@ -121,7 +128,8 @@ class FlockRegistry:
                 )
             return f"{module}.{name}"
         except AttributeError:
-            logger.warning(f"Could not determine module/name for object: {obj}")
+            logger.warning(
+                f"Could not determine module/name for object: {obj}")
             return None
 
     # --- Agent Registration ---
@@ -150,6 +158,54 @@ class FlockRegistry:
         """Returns a list of names of all registered agents."""
         return list(self._agents.keys())
 
+    # --- MCP Server Registration ---
+    def register_server(self, server: MCPConnectionSettings) -> None:
+        """Register a server instance by its name"""
+        if not hasattr(server, "name") or not server.name:
+            logger.error(
+                "Attempted to register a server without a valid 'name' attribute."
+            )
+            return
+        if server.name in self._servers and self._servers[server.name] != server:
+            logger.warning(
+                f"Server '{server.name}' already registered. Overwriting."
+            )
+        self._servers[server.name] = server
+        logger.debug(f"Registered server: {server.name}")
+
+    def get_server(self, server_name: str) -> MCPConnectionSettings | None:
+        """Retrieves a registered MCPServerConnection by name."""
+        server = self._servers.get(server_name)
+        if not server:
+            logger.warning(f"Server '{server_name}' not found in registry")
+        return server
+
+    def get_all_server_names(self) -> list[str]:
+        """Returns a list of names for all mcp-servers."""
+        return list(self._servers.keys())
+
+    # --- MCP Init Hook Registration ---
+    def register_mcp_init_hook(self, server_name: str, init_hook: InitHookCallable) -> None:
+        """Register an initHookCallable with the associated server name"""
+        if server_name in self._mcp_init_hooks and self._mcp_init_hooks[server_name] != init_hook:
+            logger.warning(
+                f"InitHook for server: '{server_name}' already registered. Overwriting."
+            )
+        self._mcp_init_hooks[server_name] = init_hook
+        logger.debug(f"Registered init hook for server: '{server_name}")
+
+    def get_mcp_init_hook(self, server_name: str) -> InitHookCallable | None:
+        """Retrieves a registered InitHookCallable by the associated server name"""
+        hook = self._mcp_init_hooks.get(server_name)
+        if not hook:
+            logger.warning(
+                f"Server '{server_name}' has no associated init hook in registry")
+        return hook
+
+    def get_all_mcp_init_hooks(self) -> list[tuple[str, InitHookCallable]]:
+        """Returns a list of tuples with (server_name, hook) for all registered init hooks"""
+        return list(self._mcp_init_hooks)
+
     # --- Callable Registration ---
     def register_callable(
         self, func: Callable, name: str | None = None
@@ -165,7 +221,8 @@ class FlockRegistry:
                     f"Callable '{path_str}' already registered with a different function. Overwriting."
                 )
             self._callables[path_str] = func
-            logger.debug(f"Registered callable: '{path_str}' ({func.__name__})")
+            logger.debug(
+                f"Registered callable: '{path_str}' ({func.__name__})")
             return path_str
         logger.warning(
             f"Could not register callable {func.__name__}: Unable to determine path string"
@@ -183,7 +240,8 @@ class FlockRegistry:
         )
         try:
             if "." not in path_str:  # Built-ins
-                logger.debug(f"Trying to import built-in callable '{path_str}'")
+                logger.debug(
+                    f"Trying to import built-in callable '{path_str}'")
                 builtins_module = importlib.import_module("builtins")
                 if hasattr(builtins_module, path_str):
                     func = getattr(builtins_module, path_str)
@@ -408,6 +466,8 @@ def get_registry() -> FlockRegistry:
 # Type hinting for decorators to preserve signature
 @overload
 def flock_component(cls: ClassType) -> ClassType: ...
+
+
 @overload
 def flock_component(
     *, name: str | None = None
@@ -446,6 +506,8 @@ def flock_component(
 # Type hinting for decorators
 @overload
 def flock_tool(func: FuncType) -> FuncType: ...
+
+
 @overload
 def flock_tool(
     *, name: str | None = None
@@ -485,6 +547,8 @@ flock_callable = flock_tool
 
 @overload
 def flock_type(cls: ClassType) -> ClassType: ...
+
+
 @overload
 def flock_type(
     *, name: str | None = None
@@ -541,7 +605,8 @@ def _auto_register_by_path():
             component_class = getattr(module, class_name)
             _registry_instance.register_component(component_class)
         except (ImportError, AttributeError) as e:
-            logger.warning(f"{class_name} not found for auto-registration: {e}")
+            logger.warning(
+                f"{class_name} not found for auto-registration: {e}")
 
     # Auto-register standard tools by scanning modules
     tool_modules = [
