@@ -93,20 +93,23 @@ def _resolve_type_string(type_str: str) -> type:
     if generic_match:
         base_name = generic_match.group(1).strip()
         args_str = generic_match.group(2).strip()
-        logger.debug(f"Detected generic pattern: Base='{base_name}', Args='{args_str}'")
+        logger.debug(
+            f"Detected generic pattern: Base='{base_name}', Args='{args_str}'")
 
         try:
             # Get the base generic type (e.g., list, dict, Optional) from registry/builtins
             BaseType = FlockRegistry.get_type(
                 base_name
             )  # Expects List, Dict etc. to be registered
-            logger.debug(f"Resolved base generic type '{base_name}' to: {BaseType}")
+            logger.debug(
+                f"Resolved base generic type '{base_name}' to: {BaseType}")
 
             # Special handling for Literal
             if BaseType is typing.Literal:
                 # Split literal values, remove quotes, strip whitespace
                 literal_args_raw = split_top_level(args_str)
-                literal_args = tuple(s.strip().strip("'\"") for s in literal_args_raw)
+                literal_args = tuple(s.strip().strip("'\"")
+                                     for s in literal_args_raw)
                 logger.debug(
                     f"Parsing Literal arguments: {literal_args_raw} -> {literal_args}"
                 )
@@ -121,27 +124,32 @@ def _resolve_type_string(type_str: str) -> type:
             if not arg_strs:
                 raise ValueError("Generic type has no arguments.")
 
-            resolved_arg_types = tuple(_resolve_type_string(arg) for arg in arg_strs)
+            resolved_arg_types = tuple(
+                _resolve_type_string(arg) for arg in arg_strs)
             logger.debug(f"Resolved generic arguments: {resolved_arg_types}")
 
             # Construct the generic type hint
             if BaseType is typing.Optional:
                 if len(resolved_arg_types) != 1:
                     raise ValueError("Optional requires exactly one argument.")
-                resolved_type = typing.Union[resolved_arg_types[0], type(None)]  # type: ignore
-                logger.debug(f"Constructed Optional type as Union: {resolved_type}")
+                # type: ignore
+                resolved_type = typing.Union[resolved_arg_types[0], type(None)]
+                logger.debug(
+                    f"Constructed Optional type as Union: {resolved_type}")
                 return resolved_type
             elif BaseType is typing.Union:
                 if not resolved_arg_types:
                     raise ValueError("Union requires at least one argument.")
-                resolved_type = typing.Union[resolved_arg_types]  # type: ignore
+                # type: ignore
+                resolved_type = typing.Union[resolved_arg_types]
                 logger.debug(f"Constructed Union type: {resolved_type}")
                 return resolved_type
             elif hasattr(
                 BaseType, "__getitem__"
             ):  # Check if subscriptable (like list, dict, List, Dict)
                 resolved_type = BaseType[resolved_arg_types]  # type: ignore
-                logger.debug(f"Constructed subscripted generic type: {resolved_type}")
+                logger.debug(
+                    f"Constructed subscripted generic type: {resolved_type}")
                 return resolved_type
             else:
                 # Base type found but cannot be subscripted
@@ -236,7 +244,8 @@ class DSPyIntegrationMixin:
                     )
                     # DSPy Fields use 'desc' for description
                     class_dict[name] = (
-                        FieldClass(desc=desc) if desc is not None else FieldClass()
+                        FieldClass(
+                            desc=desc) if desc is not None else FieldClass()
                     )
 
         try:
@@ -247,11 +256,13 @@ class DSPyIntegrationMixin:
                 f"Error processing fields for DSPy signature '{agent_name}': {e}",
                 exc_info=True,
             )
-            raise ValueError(f"Could not process fields for signature: {e}") from e
+            raise ValueError(
+                f"Could not process fields for signature: {e}") from e
 
         # Create and return the dynamic class
         try:
-            DynamicSignature = type("dspy_" + agent_name, (base_class,), class_dict)
+            DynamicSignature = type(
+                "dspy_" + agent_name, (base_class,), class_dict)
             logger.info(
                 f"Successfully created DSPy Signature: {DynamicSignature.__name__} "
                 f"with fields: {DynamicSignature.__annotations__}"
@@ -262,7 +273,8 @@ class DSPyIntegrationMixin:
                 f"Failed to create dynamic type 'dspy_{agent_name}': {e}",
                 exc_info=True,
             )
-            raise TypeError(f"Could not create DSPy signature type: {e}") from e
+            raise TypeError(
+                f"Could not create DSPy signature type: {e}") from e
 
     def _configure_language_model(
         self,
@@ -324,13 +336,15 @@ class DSPyIntegrationMixin:
         try:
             import dspy
         except ImportError:
-            logger.error("DSPy library is not installed. Cannot select DSPy task.")
+            logger.error(
+                "DSPy library is not installed. Cannot select DSPy task.")
             raise ImportError("DSPy is required for this functionality.")
 
         processed_tools = []
         if tools:
             for tool in tools:
-                if callable(tool):  # Basic check
+                # Basic check (Callables are objects with an instance of a __call__ method)
+                if callable(tool):
                     processed_tools.append(tool)
                 # Could add more sophisticated tool wrapping/validation here if needed
                 else:
@@ -366,7 +380,8 @@ class DSPyIntegrationMixin:
                 )
                 dspy_program = dspy.Predict(signature)
 
-            logger.info(f"Instantiated DSPy program: {type(dspy_program).__name__}")
+            logger.info(
+                f"Instantiated DSPy program: {type(dspy_program).__name__}")
             return dspy_program
         except Exception as e:
             logger.error(
@@ -407,7 +422,8 @@ class DSPyIntegrationMixin:
             final_result = {**inputs, **output_dict}
 
             lm = dspy.settings.get("lm")
-            cost = sum([x["cost"] for x in lm.history if x["cost"] is not None])
+            cost = sum([x["cost"]
+                       for x in lm.history if x["cost"] is not None])
             lm_history = lm.inspect_history()
 
             return final_result, cost, lm_history

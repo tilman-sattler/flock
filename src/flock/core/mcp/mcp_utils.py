@@ -1,5 +1,5 @@
 import traceback
-from flock.core.mcp.mcp_session import MCPServerConnection
+from flock.core.mcp.mcp_connection import MCPServerConnection
 
 
 async def _manage_server_session(session: MCPServerConnection) -> None:

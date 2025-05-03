@@ -85,7 +85,7 @@ class MCPSamplingSettins(BaseModel):
     )
 
 
-class MCPConnectionSettings(BaseModel):
+class MCPServerConnection(BaseModel):
     """
     Description:
       Represents the configuration for a connection to 
@@ -163,7 +163,7 @@ class MCPClientSettings(BaseModel):
         Settings to use for configuring an MCPClient.
     """
 
-    connections: Dict[str, MCPConnectionSettings] = Field(
+    connections: Dict[str, MCPServerConnection] = Field(
         description="Maps server-names to their connection-settings."
     )
 

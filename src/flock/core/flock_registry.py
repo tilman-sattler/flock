@@ -1,5 +1,5 @@
 # src/flock/core/flock_registry.py
-"""Centralized registry for managing Agents, Callables, Types, and Component Classes
+"""Centralized registry for managing Agents, MCP-Servers, Callables, Types, and Component Classes
 within the Flock framework to support dynamic lookup and serialization.
 """
 
@@ -22,7 +22,7 @@ from typing import (  # Add TYPE_CHECKING
 
 from pydantic import BaseModel
 
-from flock.core.mcp.mcp_settings import MCPConnectionSettings
+from flock.core.mcp.mcp_settings import MCPServerConnection
 from flock.core.mcp.mcp_types import InitHookCallable
 
 if TYPE_CHECKING:
@@ -55,13 +55,13 @@ class FlockRegistry:
     """Singleton registry for Agents, Callables (functions/methods).
 
     Types (Pydantic/Dataclasses used in signatures), and Component Classes
-    (Modules, Evaluators, Routers).
+    (Modules, Evaluators, Routers), as well as MCP-Servers.
     """
 
     _instance = None
 
     _agents: dict[str, FlockAgent]
-    _servers: dict[str, MCPConnectionSettings]
+    _servers: dict[str, MCPServerConnection]
     _mcp_init_hooks: dict[str, InitHookCallable]
     _callables: dict[str, Callable]
     _types: dict[str, type]
@@ -159,7 +159,7 @@ class FlockRegistry:
         return list(self._agents.keys())
 
     # --- MCP Server Registration ---
-    def register_server(self, server: MCPConnectionSettings) -> None:
+    def register_server(self, server: MCPServerConnection) -> None:
         """Register a server instance by its name"""
         if not hasattr(server, "name") or not server.name:
             logger.error(
@@ -173,7 +173,7 @@ class FlockRegistry:
         self._servers[server.name] = server
         logger.debug(f"Registered server: {server.name}")
 
-    def get_server(self, server_name: str) -> MCPConnectionSettings | None:
+    def get_server(self, server_name: str) -> MCPServerConnection | None:
         """Retrieves a registered MCPServerConnection by name."""
         server = self._servers.get(server_name)
         if not server:

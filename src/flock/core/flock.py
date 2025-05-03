@@ -31,6 +31,7 @@ from flock.core.execution.local_executor import run_local_workflow
 from flock.core.execution.temporal_executor import run_temporal_workflow
 from flock.core.flock_evaluator import FlockEvaluator
 from flock.core.logging.logging import LOGGERS, get_logger, get_module_loggers
+from flock.core.mcp.mcp_connection import MCPServerConnection
 from flock.core.serialization.serializable import Serializable
 from flock.core.util.cli_helper import init_console
 
@@ -214,6 +215,15 @@ class Flock(BaseModel, Serializable):
             set_baggage("session_id", session_id)
             logger.debug(f"Generated new session_id: {session_id}")
 
+    def add_mcp_server(self, server: MCPServerConnection) -> None:
+        """
+        Description:
+            Adds a mcp_server configuration to this Flock configuration and registry
+            This is done to enable all configured agents to easily retrieve and
+            access the configured MCP-Servers that are being managed by the registry.
+        """
+        FlockRegistry.register_server(server=server)
+
     def add_agent(self, agent: FlockAgent) -> FlockAgent:
         """Adds an agent instance to this Flock configuration and registry."""
         from flock.core.flock_agent import FlockAgent as ConcreteFlockAgent
@@ -350,9 +360,11 @@ class Flock(BaseModel, Serializable):
             try:
                 resolved_start_agent = self._agents.get(start_agent_name)
                 if not resolved_start_agent:
-                    resolved_start_agent = FlockRegistry.get_agent(start_agent_name)
+                    resolved_start_agent = FlockRegistry.get_agent(
+                        start_agent_name)
                     if not resolved_start_agent:
-                        raise ValueError(f"Start agent '{start_agent_name}' not found.")
+                        raise ValueError(
+                            f"Start agent '{start_agent_name}' not found.")
                     self.add_agent(resolved_start_agent)
 
                 run_context = context if context else FlockContext()
@@ -392,7 +404,8 @@ class Flock(BaseModel, Serializable):
                 result_str = str(result)
                 span.set_attribute(
                     "result.preview",
-                    result_str[:1000] + ("..." if len(result_str) > 1000 else ""),
+                    result_str[:1000] +
+                    ("..." if len(result_str) > 1000 else ""),
                 )
 
                 if box_result:
@@ -400,13 +413,15 @@ class Flock(BaseModel, Serializable):
                         logger.debug("Boxing final result.")
                         return Box(result)
                     except ImportError:
-                        logger.warning("Box library not installed, returning raw dict.")
+                        logger.warning(
+                            "Box library not installed, returning raw dict.")
                         return result
                 else:
                     return result
 
             except Exception as e:
-                logger.error(f"Flock run '{self.name}' failed: {e}", exc_info=True)
+                logger.error(
+                    f"Flock run '{self.name}' failed: {e}", exc_info=True)
                 span.record_exception(e)
                 span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
                 return {

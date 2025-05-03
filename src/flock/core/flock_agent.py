@@ -238,7 +238,6 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
             try:
                 # Pass registered tools if the evaluator needs them
                 registered_tools = []
-                # TODO: MODEL CONTEXT PROTOCOL MODULE LOGIC HERE
                 if self.tools:
                     # Ensure tools are actually retrieved/validated if needed by evaluator type
                     # For now, assume evaluator handles tool resolution if necessary
@@ -402,7 +401,8 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
 
         FlockRegistry = get_registry()
 
-        exclude = ["context", "evaluator", "modules", "handoff_router", "tools"]
+        exclude = ["context", "evaluator",
+                   "modules", "handoff_router", "tools"]
 
         is_descrition_callable = False
         is_input_callable = False
